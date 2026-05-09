@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lily Remote — KISSS Full UX</title>
+  <style>
+    :root {
+      --ink: #11120f;
+      --paper: #e8e9dc;
+      --soft: #d8dac8;
+      --faint: #c9cbbb;
+      --w: 540px;
+      --h: 960px;
+      --serif: Georgia, "Times New Roman", serif;
+      --mono: "IBM Plex Mono", "Courier Prime", "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: auto 210px;
+      gap: 28px;
+      place-content: center;
+      background:
+        radial-gradient(circle at 25% 20%, rgba(255,255,255,.08) 0 1px, transparent 2px),
+        linear-gradient(135deg, #1a1a18, #050505 70%);
+      background-size: 18px 18px, auto;
+      color: var(--ink);
+      font-family: var(--mono);
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      border-radius: 0;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .screen {
+      width: var(--w);
+      height: var(--h);
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, rgba(17,18,15,.022) 0 1px, transparent 1px 12px),
+        linear-gradient(0deg, rgba(17,18,15,.018) 0 1px, transparent 1px 12px),
+        var(--paper);
+      border: 16px solid var(--ink);
+      box-shadow: 0 28px 90px rgba(0,0,0,.58);
+    }
+
+    .screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(0,0,0,.22) .55px, transparent .75px);
+      background-size: 4px 4px;
+      opacity: .08;
+    }
+
+    .page {
+      position: absolute;
+      inset: 0;
+      display: none;
+      padding: 24px 26px 92px;
+    }
+
+    .page.active { display: block; }
+
+    .top {
+      height: 58px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      border-bottom: 3px solid var(--ink);
+      margin-bottom: 22px;
+    }
+
+    .brand {
+      display: grid;
+      gap: 2px;
+      padding-left: 16px;
+      border-left: 12px solid var(--ink);
+      height: 44px;
+      align-content: center;
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .off {
+      height: 42px;
+      min-width: 82px;
+      border: 0;
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+
+    .title-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 56px;
+      line-height: .88;
+      letter-spacing: -.05em;
+      font-weight: 900;
+    }
+
+    .state-pill {
+      border: 2px solid var(--ink);
+      background: var(--paper);
+      padding: 10px 12px 9px;
+      min-width: 116px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .caption {
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .footer {
+      position: absolute;
+      left: 26px;
+      right: 26px;
+      bottom: 22px;
+      height: 58px;
+      display: flex;
+      border: 3px solid var(--ink);
+      background: var(--paper);
+      z-index: 5;
+    }
+
+    .footer button {
+      flex: 1 1 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-right: 2px solid var(--ink);
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      line-height: 1;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .footer button span { display: block; }
+
+    .footer button:last-child { border-right: 0; }
+    .footer button.active { background: var(--ink); color: var(--paper); }
+
+    .card {
+      border: 3px solid var(--ink);
+      background: var(--paper);
+    }
+
+    .solid {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+
+    .tap:active, .footer button:active, .rail button:active { filter: invert(1); }
+
+    /* HOME */
+    .activity-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .activity {
+      height: 150px;
+      padding: 18px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      align-items: start;
+    }
+
+    .activity .glyph { font-size: 33px; line-height: 1; }
+    .activity strong {
+      align-self: end;
+      font-family: var(--serif);
+      font-size: 28px;
+      line-height: .9;
+      letter-spacing: -.04em;
+    }
+    .activity small {
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+      opacity: .92;
+    }
+
+    .home-status {
+      height: 86px;
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border: 3px solid var(--ink);
+    }
+
+    .home-status div {
+      border-right: 2px solid var(--ink);
+      padding: 13px 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .home-status div:last-child { border-right: 0; }
+    .home-status b { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+    .home-status span { font-family: var(--serif); font-size: 22px; font-weight: 900; letter-spacing: -.04em; }
+
+    .now-strip {
+      height: 98px;
+      display: grid;
+      grid-template-columns: 96px 1fr;
+      align-items: center;
+      padding: 0 18px;
+      margin-bottom: 18px;
+    }
+    .now-strip .mark { font-family: var(--serif); font-size: 64px; font-weight: 900; line-height: 1; }
+    .now-strip b { display: block; font-family: var(--serif); font-size: 31px; line-height: .9; letter-spacing: -.04em; }
+    .now-strip span { display: block; margin-top: 8px; font-size: 11px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+
+    /* MEDIA */
+    .device-switch {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 3px solid var(--ink);
+      height: 66px;
+      margin-bottom: 16px;
+    }
+
+    .device-switch button {
+      border: 0;
+      border-right: 2px solid var(--ink);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .device-switch button:last-child { border-right: 0; }
+    .device-switch button.active { background: var(--ink); color: var(--paper); }
+
+    .deck { display: none; }
+    .deck.active { display: block; }
+
+    .media-head {
+      height: 76px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      padding: 0 16px;
+      margin-bottom: 14px;
+    }
+    .media-head b { font-family: var(--serif); font-size: 30px; letter-spacing: -.04em; }
+    .media-head span { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+
+    .dpad-wrap {
+      display: grid;
+      grid-template-columns: 96px 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+    .side-actions { display: grid; gap: 12px; }
+    .side-actions button { border: 3px solid var(--ink); background: var(--paper); font-weight: 900; text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
+
+    .dpad {
+      height: 326px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      border: 3px solid var(--ink);
+      background: var(--soft);
+    }
+    .dpad button {
+      border: 0;
+      border-right: 2px solid var(--ink);
+      border-bottom: 2px solid var(--ink);
+      background: var(--paper);
+      font-size: 30px;
+      font-weight: 900;
+    }
+    .dpad button:nth-child(3n) { border-right: 0; }
+    .dpad button:nth-last-child(-n+3) { border-bottom: 0; }
+    .dpad .empty { background: var(--soft); }
+    .dpad .ok { background: var(--ink); color: var(--paper); font-family: var(--serif); font-size: 33px; letter-spacing: -.04em; }
+
+    .source-grid, .lights-grid, .more-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .source-grid button, .lights-grid button, .more-grid button {
+      height: 112px;
+      border: 3px solid var(--ink);
+      background: var(--paper);
+      padding: 16px;
+      display: grid;
+      align-content: space-between;
+      text-align: left;
+    }
+    .source-grid b, .lights-grid b, .more-grid b {
+      font-family: var(--serif);
+      font-size: 27px;
+      line-height: .9;
+      letter-spacing: -.04em;
+    }
+    .source-grid span, .lights-grid span, .more-grid span {
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    .source-grid .wide, .more-grid .wide { grid-column: span 2; height: 118px; }
+    .source-grid button.solid, .more-grid button.solid {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+
+    .volume-hero {
+      height: 166px;
+      display: grid;
+      grid-template-columns: 1fr 116px 116px;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .volume-hero .readout {
+      padding: 18px;
+      display: grid;
+      align-content: space-between;
+    }
+    .readout b { font-family: var(--serif); font-size: 42px; letter-spacing: -.06em; line-height: .85; }
+    .readout span { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .volume-hero button {
+      border: 3px solid var(--ink);
+      background: var(--paper);
+      font-family: var(--serif);
+      font-size: 54px;
+      font-weight: 900;
+    }
+
+    .ls60-alert {
+      height: 118px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+    }
+    .ls60-alert b { font-family: var(--serif); font-size: 32px; letter-spacing: -.05em; }
+    .ls60-alert span { display: block; margin-top: 7px; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .ls60-alert em { font-family: var(--serif); font-style: normal; font-size: 54px; font-weight: 900; }
+
+    /* LIGHTS */
+    .scene-now {
+      height: 132px;
+      display: grid;
+      grid-template-columns: 1fr 112px;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .scene-now .current { padding: 18px; display: grid; align-content: space-between; }
+    .scene-now b { font-family: var(--serif); font-size: 38px; line-height: .85; letter-spacing: -.05em; }
+    .scene-now span { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .scene-now button { border: 3px solid var(--ink); background: var(--ink); color: var(--paper); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+
+    /* INFO */
+    .info-list { border: 3px solid var(--ink); }
+    .info-row {
+      min-height: 78px;
+      display: grid;
+      grid-template-columns: 128px 1fr;
+      border-bottom: 2px solid var(--ink);
+      align-items: center;
+    }
+    .info-row:last-child { border-bottom: 0; }
+    .info-row .k { padding-left: 16px; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .info-row .v { font-family: var(--serif); font-size: 25px; font-weight: 900; letter-spacing: -.04em; }
+
+    /* PREVIEW RAIL */
+    .rail {
+      color: #e8e9dc;
+      align-self: center;
+      font-family: var(--mono);
+    }
+    .rail h2 { margin: 0 0 12px; font-family: var(--serif); font-size: 30px; letter-spacing: -.05em; }
+    .rail p { margin: 0 0 18px; line-height: 1.35; font-size: 12px; opacity: .82; }
+    .rail button {
+      width: 100%;
+      height: 42px;
+      margin-bottom: 8px;
+      border: 2px solid #e8e9dc;
+      background: transparent;
+      color: #e8e9dc;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .rail button.active { background: #e8e9dc; color: #11120f; }
+
+    @media (max-width: 820px) {
+      body { grid-template-columns: 1fr; gap: 14px; padding: 18px 0; }
+      .rail { width: var(--w); max-width: calc(100vw - 24px); justify-self: center; }
+      .screen { transform-origin: top center; max-width: calc(100vw - 24px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="screen" aria-label="Lily Remote full UX prototype">
+    <section class="page active" data-page="home">
+      <div class="top"><div class="brand"><span>Lily Remote</span><span>Living Room</span></div><button class="off tap">Off</button></div>
+      <div class="title-row"><h1>Home</h1><div class="state-pill">Online</div></div>
+      <button class="now-strip card solid tap"><div class="mark">▶</div><div><b>Watch TV</b><span>Current activity</span></div></button>
+      <div class="activity-grid">
+        <button class="activity card tap"><span class="glyph">▣</span><strong>Watch<br>TV</strong><small>Telia + WiiM</small></button>
+        <button class="activity card tap"><span class="glyph">✕</span><strong>Play<br>PS5</strong><small>Console route</small></button>
+        <button class="activity card tap"><span class="glyph">♪</span><strong>Stream</strong><small>WiiM</small></button>
+        <button class="activity card tap"><span class="glyph">●</span><strong>Records</strong><small>Phono in</small></button>
+      </div>
+      <div class="home-status">
+        <div><b>TV</b><span>On</span></div>
+        <div><b>WiiM</b><span>TV · 20</span></div>
+        <div><b>LS60</b><span>Coax</span></div>
+      </div>
+    </section>
+
+    <section class="page" data-page="media">
+      <div class="top"><div class="brand"><span>Lily Remote</span><span>Living Room</span></div><button class="off tap">Off</button></div>
+      <div class="title-row"><h1>Remote</h1><div class="state-pill" id="target-pill">Telia</div></div>
+      <nav class="device-switch" aria-label="Device target">
+        <button class="active" data-target="telia">Telia</button>
+        <button data-target="wiim">WiiM</button>
+        <button data-target="tv">TV</button>
+        <button data-target="ls60">LS60</button>
+      </nav>
+
+      <div class="deck active" data-deck="telia">
+        <div class="media-head card solid"><b>Navigate</b><span>Telia box</span></div>
+        <div class="dpad-wrap">
+          <div class="side-actions"><button class="tap">Back</button><button class="tap">Home</button></div>
+          <div class="dpad">
+            <button class="empty" tabindex="-1"></button><button class="tap">▲</button><button class="empty" tabindex="-1"></button>
+            <button class="tap">◀</button><button class="ok tap">OK</button><button class="tap">▶</button>
+            <button class="empty" tabindex="-1"></button><button class="tap">▼</button><button class="empty" tabindex="-1"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="deck" data-deck="wiim">
+        <div class="media-head card solid"><b>WiiM</b><span>Preamp volume</span></div>
+        <div class="volume-hero">
+          <div class="readout card"><span>Volume</span><b>20</b><span>TV input</span></div>
+          <button class="tap">−</button><button class="tap">+</button>
+        </div>
+        <div class="source-grid">
+          <button class="tap"><span>Input</span><b>TV</b></button>
+          <button class="tap"><span>Input</span><b>Phono</b></button>
+          <button class="tap wide solid"><span>Audio</span><b>Mute</b></button>
+        </div>
+      </div>
+
+      <div class="deck" data-deck="tv">
+        <div class="media-head card solid"><b>TV</b><span>Power + input</span></div>
+        <div class="source-grid">
+          <button class="tap wide solid"><span>Power</span><b>Toggle TV</b></button>
+          <button class="tap"><span>Source</span><b>Telia</b></button>
+          <button class="tap"><span>Source</span><b>PS5</b></button>
+          <button class="tap"><span>App</span><b>Plex</b></button>
+          <button class="tap"><span>App</span><b>Netflix</b></button>
+        </div>
+      </div>
+
+      <div class="deck" data-deck="ls60">
+        <div class="ls60-alert card solid"><div><b>Fix speakers</b><span>Coax + unity gain</span></div><em>71</em></div>
+        <div class="source-grid">
+          <button class="tap"><span>Input</span><b>Coax</b></button>
+          <button class="tap"><span>Unity</span><b>Vol 71</b></button>
+          <button class="tap"><span>Recovery</span><b>Vol −</b></button>
+          <button class="tap"><span>Recovery</span><b>Vol +</b></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" data-page="lights">
+      <div class="top"><div class="brand"><span>Lily Remote</span><span>Living Room</span></div><button class="off tap">Off</button></div>
+      <div class="title-row"><h1>Lights</h1><div class="state-pill">Dimmed</div></div>
+      <div class="scene-now"><div class="current card solid"><span>Current scene</span><b>TV Night</b></div><button class="tap">Off</button></div>
+      <div class="lights-grid">
+        <button class="tap"><span>Scene</span><b>TV</b></button>
+        <button class="tap"><span>Scene</span><b>Records</b></button>
+        <button class="tap"><span>Scene</span><b>Relax</b></button>
+        <button class="tap"><span>Scene</span><b>Read</b></button>
+        <button class="tap"><span>Scene</span><b>Bright</b></button>
+        <button class="tap"><span>Scene</span><b>Night</b></button>
+      </div>
+    </section>
+
+    <section class="page" data-page="info">
+      <div class="top"><div class="brand"><span>Lily Remote</span><span>Living Room</span></div><button class="off tap">Off</button></div>
+      <div class="title-row"><h1>Status</h1><div class="state-pill">Fresh</div></div>
+      <div class="info-list">
+        <div class="info-row"><div class="k">Activity</div><div class="v">Watch TV</div></div>
+        <div class="info-row"><div class="k">TV</div><div class="v">On · Telia</div></div>
+        <div class="info-row"><div class="k">WiiM</div><div class="v">TV · Volume 20</div></div>
+        <div class="info-row"><div class="k">LS60</div><div class="v">Coax · Unity 71</div></div>
+        <div class="info-row"><div class="k">HA</div><div class="v">Connected</div></div>
+        <div class="info-row"><div class="k">Remote</div><div class="v">WiFi -58 dBm</div></div>
+      </div>
+    </section>
+
+    <section class="page" data-page="more">
+      <div class="top"><div class="brand"><span>Lily Remote</span><span>Living Room</span></div><button class="off tap">Off</button></div>
+      <div class="title-row"><h1>More</h1><div class="state-pill">Tools</div></div>
+      <div class="more-grid">
+        <button class="tap wide solid"><span>Room</span><b>All Off</b></button>
+        <button class="tap"><span>State</span><b>Refresh</b></button>
+        <button class="tap"><span>Speakers</span><b>Fix LS60</b></button>
+        <button class="tap"><span>Power</span><b>Sleep</b></button>
+        <button class="tap"><span>System</span><b>About</b></button>
+      </div>
+    </section>
+
+    <nav class="footer" aria-label="Main navigation">
+      <button class="active" data-page-button="home"><span>Home</span></button>
+      <button data-page-button="media"><span>Media</span></button>
+      <button data-page-button="lights"><span>Light</span></button>
+      <button data-page-button="info"><span>Info</span></button>
+      <button data-page-button="more"><span>More</span></button>
+    </nav>
+  </main>
+
+  <aside class="rail" aria-label="Prototype controls">
+    <h2>KISSS UX</h2>
+    <p>One exact 540×960 remote. Big actions. Device-specific controls. No pretend D-pad where it doesn't belong.</p>
+    <button class="active" data-rail-page="home">Home</button>
+    <button data-rail-page="media">Media</button>
+    <button data-rail-page="lights">Lights</button>
+    <button data-rail-page="info">Info</button>
+    <button data-rail-page="more">More</button>
+  </aside>
+
+  <script>
+    const pageLabels = { home: 'Home', media: 'Media', lights: 'Light', info: 'Info', more: 'More' };
+
+    function showPage(name) {
+      document.querySelectorAll('.page').forEach(page => page.classList.toggle('active', page.dataset.page === name));
+      document.querySelectorAll('[data-page-button]').forEach(button => button.classList.toggle('active', button.dataset.pageButton === name));
+      document.querySelectorAll('[data-rail-page]').forEach(button => button.classList.toggle('active', button.dataset.railPage === name));
+    }
+
+    document.querySelectorAll('[data-page-button]').forEach(button => button.addEventListener('click', () => showPage(button.dataset.pageButton)));
+    document.querySelectorAll('[data-rail-page]').forEach(button => button.addEventListener('click', () => showPage(button.dataset.railPage)));
+
+    const targetPill = document.getElementById('target-pill');
+    document.querySelectorAll('[data-target]').forEach(button => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.target;
+        document.querySelectorAll('[data-target]').forEach(b => b.classList.toggle('active', b === button));
+        document.querySelectorAll('[data-deck]').forEach(deck => deck.classList.toggle('active', deck.dataset.deck === target));
+        targetPill.textContent = button.textContent;
+      });
+    });
+  </script>
+</body>
+</html>
