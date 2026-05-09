@@ -16,12 +16,12 @@ struct UiRect {
 };
 
 enum class UiPageId : uint8_t {
-  SafeControl,
-  Activities,
+  Home,
   Media,
   Lights,
-  Info,
-  Status,
+  Room,
+  More,
+  SafeControl,
   TouchTest,
 };
 
@@ -29,17 +29,28 @@ constexpr int16_t kUiScreenWidth = 540;
 constexpr int16_t kUiScreenHeight = 960;
 constexpr UiRect kSafeControlToggleButton{64, 520, 412, 150};
 
-constexpr UiRect kActivityWatchTvButton{40, 238, 220, 126};
-constexpr UiRect kActivityPs5Button{280, 238, 220, 126};
-constexpr UiRect kActivityMusicButton{40, 378, 220, 126};
-constexpr UiRect kActivityRecordsButton{280, 378, 220, 126};
-constexpr UiRect kMediaOffButton{422, 40, 78, 38};
+constexpr UiRect kActivityWatchTvButton{24, 238, 238, 126};
+constexpr UiRect kActivityPs5Button{278, 238, 238, 126};
+constexpr UiRect kActivityMusicButton{24, 378, 238, 126};
+constexpr UiRect kActivityRecordsButton{278, 378, 238, 126};
+constexpr UiRect kMediaOffButton{420, 40, 96, 38};
+constexpr UiRect kOnlinePillRect{312, 40, 98, 38};
 
-constexpr UiRect kBottomNavHomeButton{40, 862, 92, 58};
-constexpr UiRect kBottomNavMediaButton{132, 862, 92, 58};
-constexpr UiRect kBottomNavLightsButton{224, 862, 92, 58};
-constexpr UiRect kBottomNavInfoButton{316, 862, 92, 58};
-constexpr UiRect kBottomNavMoreButton{408, 862, 92, 58};
+constexpr UiRect kQuickVolDown{24, 746, 94, 76};
+constexpr UiRect kQuickPrev{118, 746, 94, 76};
+constexpr UiRect kQuickPlay{212, 746, 116, 76};
+constexpr UiRect kQuickNext{328, 746, 94, 76};
+constexpr UiRect kQuickVolUp{422, 746, 94, 76};
+
+constexpr UiRect kChipTV{24, 686, 157, 50};
+constexpr UiRect kChipWiiM{191, 686, 158, 50};
+constexpr UiRect kChipKEF{359, 686, 157, 50};
+
+constexpr UiRect kNavHome{24, 862, 98, 58};
+constexpr UiRect kNavMedia{122, 862, 98, 58};
+constexpr UiRect kNavLights{220, 862, 100, 58};
+constexpr UiRect kNavRoom{320, 862, 98, 58};
+constexpr UiRect kNavMore{418, 862, 98, 58};
 
 constexpr UiRect kDeviceTeliaTab{40, 224, 115, 62};
 constexpr UiRect kDeviceWiimTab{155, 224, 115, 62};

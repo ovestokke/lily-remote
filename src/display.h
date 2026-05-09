@@ -30,8 +30,8 @@ struct RemoteSafeControlPage {
 };
 
 struct RemoteShellPage {
-  UiPageId pageId = UiPageId::Info;
-  const char *title = "Info";
+  UiPageId pageId = UiPageId::Room;
+  const char *title = "Room";
   const char *subtitle = "";
   String primary;
   String secondary;
@@ -61,7 +61,7 @@ struct RemoteDeviceControlPage {
 bool initRemoteDisplay();
 void renderStatusPage(const RemoteDisplayStatus &status);
 void renderSafeControlPage(const RemoteSafeControlPage &page);
-void renderActivitiesPage(const RemoteActivitiesPage &page);
+void renderHomePage(const RemoteActivitiesPage &page);
 void renderDeviceControlPage(const RemoteDeviceControlPage &page);
 void renderShellPage(const RemoteShellPage &page, const RemoteDisplayStatus &status);
 void renderTouchTestPage();

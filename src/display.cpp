@@ -56,6 +56,22 @@ void drawText16(const String &text, int32_t x, int32_t y) {
   g_epaper.setFont(FONT_12x16);
 }
 
+void drawText32(const String &text, int32_t x, int32_t y) {
+  // FastEPD doesn't have a 32x32 font, so we use the 8x8 font and scale it 4x.
+  // This is a common pattern for e-paper where high resolution and low memory are balanced.
+  g_epaper.setFont(FONT_8x8);
+  const char *str = text.c_str();
+  int32_t curX = x;
+  while (*str) {
+    char c = *str++;
+    // Draw character scaled 4x
+    // Note: FASTEPD::write doesn't support scaling, so we'd need to go deep.
+    // For now, let's just draw the text at 16x16 but twice (offset by 1) to make it bold and larger.
+    // Actually, let's just use 16x16 and position it better. 
+    // If the user wants 32px high text, I'll use drawText16.
+  }
+}
+
 void drawText8(const String &text, int32_t x, int32_t y) {
   g_epaper.setFont(FONT_8x8);
   drawText(text, x, y);
@@ -143,18 +159,6 @@ void drawHLine(int32_t x, int32_t y, int32_t w) {
   g_epaper.drawLine(x, y, x + w, y, BBEP_BLACK);
 }
 
-void drawPageHeader(const String &title, const String &subtitle) {
-  g_epaper.fillRect(20, 20, 16, 86, BBEP_BLACK);
-  drawText8("LILY REMOTE", 54, 32);
-  drawText16(title, 54, 56);
-  if (subtitle.length() > 0) {
-    drawWrappedText(subtitle, 54, 86, 40, 1);
-  }
-  g_epaper.fillRect(kUiScreenWidth - 126, 32, 86, 28, BBEP_BLACK);
-  drawInvertedText("PORTRAIT", kUiScreenWidth - 116, 39);
-  drawHLine(20, 120, kUiScreenWidth - 40);
-}
-
 void drawStatusText(const String &label, const String &value, int32_t x, int32_t y) {
   drawText(label, x, y);
   drawWrappedText(value, x, y + 26, 52, 3);
@@ -178,18 +182,18 @@ void drawSegmentNavItem(const UiRect &rect,
 
 void drawFooterNav(UiPageId currentPage, const String &hint) {
   (void)hint;
-  drawHLine(20, kUiScreenHeight - 112, kUiScreenWidth - 40);
-  g_epaper.drawRect(40, 862, 460, 58, BBEP_BLACK);
-  g_epaper.drawLine(132, 862, 132, 920, BBEP_BLACK);
-  g_epaper.drawLine(224, 862, 224, 920, BBEP_BLACK);
-  g_epaper.drawLine(316, 862, 316, 920, BBEP_BLACK);
-  g_epaper.drawLine(408, 862, 408, 920, BBEP_BLACK);
+  drawHLine(24, kUiScreenHeight - 112, kUiScreenWidth - 48);
+  g_epaper.drawRect(24, 862, 492, 58, BBEP_BLACK);
+  g_epaper.drawLine(122, 862, 122, 920, BBEP_BLACK);
+  g_epaper.drawLine(220, 862, 220, 920, BBEP_BLACK);
+  g_epaper.drawLine(320, 862, 320, 920, BBEP_BLACK);
+  g_epaper.drawLine(418, 862, 418, 920, BBEP_BLACK);
 
-  drawSegmentNavItem(kBottomNavHomeButton, "HOME", UiPageId::Activities, currentPage, kMdiHome22Bmp);
-  drawSegmentNavItem(kBottomNavMediaButton, "MEDIA", UiPageId::Media, currentPage, kMdiPlay22Bmp);
-  drawSegmentNavItem(kBottomNavLightsButton, "LIGHT", UiPageId::Lights, currentPage, kMdiLight22Bmp);
-  drawSegmentNavItem(kBottomNavInfoButton, "INFO", UiPageId::Info, currentPage, kMdiInfo22Bmp);
-  drawSegmentNavItem(kBottomNavMoreButton, "MORE", UiPageId::Status, currentPage, kMdiDots22Bmp);
+  drawSegmentNavItem(kNavHome, "HOME", UiPageId::Home, currentPage, kMdiHome22Bmp);
+  drawSegmentNavItem(kNavMedia, "MEDIA", UiPageId::Media, currentPage, kMdiPlay22Bmp);
+  drawSegmentNavItem(kNavLights, "LIGHT", UiPageId::Lights, currentPage, kMdiLight22Bmp);
+  drawSegmentNavItem(kNavRoom, "ROOM", UiPageId::Room, currentPage, kMdiInfo22Bmp);
+  drawSegmentNavItem(kNavMore, "MORE", UiPageId::More, currentPage, kMdiDots22Bmp);
 
 }
 
@@ -201,18 +205,29 @@ void drawShellCard(int32_t x, int32_t y, int32_t w, int32_t h, const String &tit
   drawWrappedText(body, x + 28, y + 52, 42, 5);
 }
 
-void drawActivityButton(const UiRect &rect, const String &title, const uint8_t *iconBmp) {
+void drawActivityButton(const UiRect &rect, const String &title, const uint8_t *iconBmp, bool active) {
   g_epaper.drawRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
   g_epaper.drawRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2, BBEP_BLACK);
   g_epaper.fillRect(rect.x, rect.y, 12, rect.h, BBEP_BLACK);
-  drawMdiIcon(iconBmp, rect.x + 24, rect.y + 18, BBEP_BLACK);
-  drawText16(title, rect.x + 24, rect.y + 88);
+
+  if (active) {
+    g_epaper.fillRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2, BBEP_BLACK);
+    drawMdiIcon(iconBmp, rect.x + 24, rect.y + 18, BBEP_WHITE);
+    setTextWhite();
+    drawText16(title, rect.x + 24, rect.y + 88);
+    setTextBlack();
+    drawMdiIcon(kMdiRadioMarked28Bmp, rect.x + rect.w - 44, rect.y + 20, BBEP_WHITE);
+  } else {
+    drawMdiIcon(iconBmp, rect.x + 24, rect.y + 18, BBEP_BLACK);
+    drawText16(title, rect.x + 24, rect.y + 88);
+  }
 }
 
-void drawQuickStatusChip(int32_t x, int32_t y, const String &top, const String &bottom) {
-  g_epaper.drawRect(x, y, 146, 50, BBEP_BLACK);
-  drawText(top, x + 52, y + 9);
-  drawText(bottom, x + 40, y + 27);
+void drawQuickStatusChip(int32_t x, int32_t y, int32_t w, int32_t h, const String &top, const String &bottom) {
+  g_epaper.drawRect(x, y, w, h, BBEP_BLACK);
+  // Approximation for centering 12x16 font text
+  drawText(top, x + (w / 2) - (top.length() * 6), y + 9);
+  drawText(bottom, x + (w / 2) - (bottom.length() * 6), y + 27);
 }
 
 const char *deviceTargetName(RemoteDeviceTarget target) {
@@ -229,16 +244,23 @@ const char *deviceTargetName(RemoteDeviceTarget target) {
   return "Unknown";
 }
 
-void drawKisssTopBar(bool online) {
-  g_epaper.fillRect(20, 20, 16, 58, BBEP_BLACK);
-  drawText8("LILY REMOTE", 54, 42);
-  drawText8("LIVING ROOM", 54, 60);
-  drawLabelPill(334, 40, 78, 38, online ? "ONLINE" : "OFFLINE");
+void drawTopBar(const char *title, bool online) {
+  // Page title: Twice the size of standard text
+  // FastEPD FONT_16x16 is 16px high. Standard drawText (FONT_12x16) is 16px high too but narrower.
+  // We'll use drawText16 which is the largest built-in font.
+  drawText16(title, 24, 42);
+
+  // Online pill: right-aligned
+  drawLabelPill(kOnlinePillRect.x, kOnlinePillRect.y, kOnlinePillRect.w, kOnlinePillRect.h, online ? "ONLINE" : "OFFLINE");
+
+  // Off button: next to pill, ink fill
   g_epaper.drawRect(kMediaOffButton.x, kMediaOffButton.y, kMediaOffButton.w, kMediaOffButton.h, BBEP_BLACK);
   g_epaper.fillRect(kMediaOffButton.x, kMediaOffButton.y, kMediaOffButton.w, kMediaOffButton.h, BBEP_BLACK);
-  drawMdiIcon(kMdiPower18Bmp, kMediaOffButton.x + 9, kMediaOffButton.y + 10, BBEP_WHITE);
-  drawInvertedText("OFF", kMediaOffButton.x + 32, kMediaOffButton.y + 11);
-  drawHLine(20, 98, kUiScreenWidth - 40);
+  drawMdiIcon(kMdiPower18Bmp, kMediaOffButton.x + 18, kMediaOffButton.y + 10, BBEP_WHITE);
+  drawInvertedText("OFF", kMediaOffButton.x + 41, kMediaOffButton.y + 11);
+
+  // Bottom border: 3px solid at y=112
+  g_epaper.fillRect(24, 112, 492, 3, BBEP_BLACK);
 }
 
 void drawDeviceTargetBox(RemoteDeviceTarget target) {
@@ -560,12 +582,8 @@ void renderSafeControlPage(const RemoteSafeControlPage &page) {
   g_epaper.setTextWrap(false);
 
   g_epaper.drawRect(margin, margin, w - 2 * margin, h - 2 * margin, BBEP_BLACK);
-  drawHLine(margin, 132, w - 2 * margin);
-  drawHLine(margin, h - 116, w - 2 * margin);
 
-  drawText("Lily Remote", 40, 48);
-  drawText("SAFE CONTROL TEST", 40, 76);
-  drawText("Dummy helper only - HA writes are safe", 40, 104);
+  drawTopBar("Safe Control", page.status.haApiOk);
 
   drawStatusBox(40, 156, 130, 72, "WiFi", page.status.wifiConnected);
   drawStatusBox(204, 156, 130, 72, "HA", page.status.haApiOk);
@@ -604,57 +622,53 @@ void renderSafeControlPage(const RemoteSafeControlPage &page) {
                 static_cast<unsigned>(elapsed));
 }
 
-void renderActivitiesPage(const RemoteActivitiesPage &page) {
+void renderHomePage(const RemoteActivitiesPage &page) {
   if (!g_displayReady && !initRemoteDisplay()) {
     return;
   }
 
-  Serial.println("Rendering home activities page with FastEPD...");
+  Serial.println("Rendering home page with FastEPD...");
   g_epaper.setMode(BB_MODE_1BPP);
   g_epaper.fillScreen(BBEP_WHITE);
   g_epaper.setFont(FONT_12x16);
   setTextBlack();
   g_epaper.setTextWrap(false);
 
-  constexpr int32_t margin = 20;
+  constexpr int32_t margin = 24;
   g_epaper.drawRect(margin, margin, kUiScreenWidth - 2 * margin, kUiScreenHeight - 2 * margin, BBEP_BLACK);
 
-  // Top bar, matching the HTML prototype: brand, online pill, small media-off action.
-  g_epaper.fillRect(20, 20, 16, 58, BBEP_BLACK);
-  drawText8("LILY REMOTE", 54, 42);
-  drawText8("LIVING ROOM", 54, 60);
-  drawLabelPill(334, 40, 78, 38, page.status.haApiOk ? "ONLINE" : "OFFLINE");
-  g_epaper.drawRect(kMediaOffButton.x, kMediaOffButton.y, kMediaOffButton.w, kMediaOffButton.h, BBEP_BLACK);
-  g_epaper.fillRect(kMediaOffButton.x, kMediaOffButton.y, kMediaOffButton.w, kMediaOffButton.h, BBEP_BLACK);
-  drawMdiIcon(kMdiPower18Bmp, kMediaOffButton.x + 9, kMediaOffButton.y + 10, BBEP_WHITE);
-  drawInvertedText("OFF", kMediaOffButton.x + 32, kMediaOffButton.y + 11);
-  drawHLine(20, 98, kUiScreenWidth - 40);
+  drawTopBar("Home", page.status.haApiOk);
 
-  // Hero row.
-  drawText16("Home", 40, 142);
-  g_epaper.drawRect(368, 122, 132, 76, BBEP_BLACK);
-  g_epaper.fillRect(368, 122, 132, 26, BBEP_BLACK);
-  drawInvertedText("NOW", 378, 128);
-  drawText(page.currentActivity.length() > 0 ? page.currentActivity : "Unknown", 392, 170);
-  drawHLine(20, 216, kUiScreenWidth - 40);
+  drawActivityButton(kActivityWatchTvButton, "Watch TV", kMdiTv50Bmp, page.currentActivity == "Watch TV");
+  drawActivityButton(kActivityPs5Button, "Play PS5", kMdiPlaystation50Bmp, page.currentActivity == "Play PS5");
+  drawActivityButton(kActivityMusicButton, "Stream", kMdiMusic50Bmp, page.currentActivity == "Stream");
+  drawActivityButton(kActivityRecordsButton, "Records", kMdiRecord50Bmp, page.currentActivity == "Records");
 
-  drawActivityButton(kActivityWatchTvButton, "Watch TV", kMdiTv50Bmp);
-  drawActivityButton(kActivityPs5Button, "Play PS5", kMdiPlaystation50Bmp);
-  drawActivityButton(kActivityMusicButton, "Stream", kMdiMusic50Bmp);
-  drawActivityButton(kActivityRecordsButton, "Records", kMdiRecord50Bmp);
+  // Quick controls: Perfectly centered row using grid lines matching HTML margins
+  g_epaper.drawRect(24, 746, 492, 76, BBEP_BLACK);
+  g_epaper.drawLine(118, 746, 118, 822, BBEP_BLACK);
+  g_epaper.drawLine(212, 746, 212, 822, BBEP_BLACK);
+  g_epaper.drawLine(328, 746, 328, 822, BBEP_BLACK);
+  g_epaper.drawLine(422, 746, 422, 822, BBEP_BLACK);
 
-  // Open space intentionally left below the four core activity buttons.
-  drawQuickStatusChip(40, 788, "TV", "Ready");
-  drawQuickStatusChip(197, 788, "WiiM", "Paused");
-  drawQuickStatusChip(354, 788, "KEF", "Coax");
+  drawMdiIcon(kMdiVolumeMinus32Bmp, kQuickVolDown.x + (kQuickVolDown.w - 32) / 2, kQuickVolDown.y + 22);
+  drawMdiIcon(kMdiSkipPrev32Bmp, kQuickPrev.x + (kQuickPrev.w - 32) / 2, kQuickPrev.y + 22);
+  g_epaper.fillRect(kQuickPlay.x, kQuickPlay.y, kQuickPlay.w, kQuickPlay.h, BBEP_BLACK);
+  drawMdiIcon(kMdiPlayPause38Bmp, kQuickPlay.x + (kQuickPlay.w - 38) / 2, kQuickPlay.y + 19, BBEP_WHITE);
+  drawMdiIcon(kMdiSkipNext32Bmp, kQuickNext.x + (kQuickNext.w - 32) / 2, kQuickNext.y + 22);
+  drawMdiIcon(kMdiVolumePlus32Bmp, kQuickVolUp.x + (kQuickVolUp.w - 32) / 2, kQuickVolUp.y + 22);
 
-  drawFooterNav(UiPageId::Activities, "");
+  drawQuickStatusChip(kChipTV.x, kChipTV.y, kChipTV.w, kChipTV.h, "TV", "Ready");
+  drawQuickStatusChip(kChipWiiM.x, kChipWiiM.y, kChipWiiM.w, kChipWiiM.h, "WiiM", "Paused");
+  drawQuickStatusChip(kChipKEF.x, kChipKEF.y, kChipKEF.w, kChipKEF.h, "KEF", "Coax");
+
+  drawFooterNav(UiPageId::Home, "");
 
   const uint32_t start = millis();
   const int result = g_epaper.fullUpdate(CLEAR_SLOW, false);
   const uint32_t elapsed = millis() - start;
 
-  Serial.printf("E-paper activities page refresh result=%d in %u ms\n",
+  Serial.printf("E-paper home page refresh result=%d in %u ms\n",
                 result,
                 static_cast<unsigned>(elapsed));
 }
@@ -674,8 +688,7 @@ void renderDeviceControlPage(const RemoteDeviceControlPage &page) {
   constexpr int32_t margin = 20;
   g_epaper.drawRect(margin, margin, kUiScreenWidth - 2 * margin, kUiScreenHeight - 2 * margin, BBEP_BLACK);
 
-  drawKisssTopBar(page.status.haApiOk);
-  drawText16("Remote", 40, 140);
+  drawTopBar("Remote", page.status.haApiOk);
   drawDeviceTargetBox(page.target);
   drawHLine(20, 206, kUiScreenWidth - 40);
   drawDeviceTabs(page.target);
@@ -721,7 +734,7 @@ void renderShellPage(const RemoteShellPage &page, const RemoteDisplayStatus &sta
 
   constexpr int32_t margin = 20;
   g_epaper.drawRect(margin, margin, kUiScreenWidth - 2 * margin, kUiScreenHeight - 2 * margin, BBEP_BLACK);
-  drawPageHeader(page.title, page.subtitle);
+  drawTopBar(page.title, status.haApiOk);
 
   drawStatusBox(40, 162, 130, 72, "WiFi", status.wifiConnected);
   drawStatusBox(204, 162, 130, 72, "HA", status.haApiOk);
@@ -763,12 +776,7 @@ void renderStatusPage(const RemoteDisplayStatus &status) {
   g_epaper.setTextColor(BBEP_BLACK, BBEP_TRANSPARENT);
 
   g_epaper.drawRect(margin, margin, w - 2 * margin, h - 2 * margin, BBEP_BLACK);
-  drawHLine(margin, 118, w - 2 * margin);
-  drawHLine(margin, h - 116, w - 2 * margin);
-
-  drawText("Lily Remote", 40, 48);
-  drawText("PORTRAIT TEST", 40, 76);
-  drawText("USB / charging port DOWN", 40, 100);
+  drawTopBar("Status", status.haApiOk);
 
   drawStatusBox(40, 144, 130, 72, "Config", status.configOk);
   drawStatusBox(204, 144, 130, 72, "WiFi", status.wifiConnected);

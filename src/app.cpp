@@ -49,10 +49,10 @@ constexpr uint32_t kServiceCallCooldownMs = 1200;
 HaClient g_haClient(HA_BASE_URL, HA_TOKEN);
 PowerManager g_powerManager;
 RemoteDisplayStatus g_displayStatus;
-UiPageId g_currentPage = UiPageId::Activities;
+UiPageId g_currentPage = UiPageId::Home;
 String g_dummyHelperState = "unknown";
 String g_uiMessage = "Ready";
-String g_activityMessage = "Tap to see what would run.";
+String g_homeMessage = "Tap to see what would run.";
 String g_deviceControlMessage = "Tap to see what would run.";
 RemoteDeviceTarget g_currentDeviceTarget = RemoteDeviceTarget::Telia;
 bool g_lastActionOk = true;
@@ -209,13 +209,13 @@ void renderSafeControlUi() {
   renderSafeControlPage(page);
 }
 
-void renderActivitiesUi() {
+void renderHomeUi() {
   RemoteActivitiesPage page;
   page.status = g_displayStatus;
   page.currentActivity = currentActivityFromSummary();
-  page.message = g_activityMessage;
+  page.message = g_homeMessage;
   page.realActionsEnabled = false;
-  renderActivitiesPage(page);
+  renderHomePage(page);
 }
 
 void renderDeviceControlUi() {
@@ -232,8 +232,8 @@ RemoteShellPage makeShellPage(UiPageId pageId) {
   page.footerHint = "Swipe left/right. Real actions still disabled.";
 
   switch (pageId) {
-  case UiPageId::Activities:
-    page.title = "Activities";
+  case UiPageId::Home:
+    page.title = "Home";
     page.subtitle = "HA script contract confirmed";
     page.primary = "Watch TV: script.activity_watch_tv | PS5: script.activity_play_ps5 | Music: script.activity_stream_music";
     page.secondary = "Records: script.activity_listen_records | Off: script.activity_all_off. Buttons still disabled until UI action policy is added.";
@@ -250,17 +250,17 @@ RemoteShellPage makeShellPage(UiPageId pageId) {
     page.primary = "Use script.remote_living_room_lights with preset: bright, dimmed, relax, nightlight, read, tv, records, off.";
     page.secondary = "Next: choose which presets deserve large e-ink buttons before enabling scene calls.";
     break;
-  case UiPageId::Info:
-    page.title = "Info";
+  case UiPageId::Room:
+    page.title = "Room";
     page.subtitle = "Remote diagnostics";
     page.primary = String("WiFi: ") + (g_displayStatus.wifiConnected ? g_displayStatus.ipAddress : "offline") +
                    " RSSI " + String(g_displayStatus.rssi) + " dBm";
     page.secondary = String("FW: ") + g_displayStatus.firmwareVersion +
                      " | HA: " + (g_displayStatus.haApiOk ? g_displayStatus.haMessage : "unavailable");
     break;
-  case UiPageId::Status:
+  case UiPageId::More:
   default:
-    page.title = "Status";
+    page.title = "More";
     page.subtitle = "Home Assistant summary";
     page.primary = "Read-only status view for the living-room remote.";
     page.secondary = String("Test entity: ") + g_displayStatus.entityId;
@@ -275,20 +275,20 @@ void renderCurrentPage() {
 #if REMOTE_ENABLE_SAFE_CONTROL_PAGE
     renderSafeControlUi();
 #else
-    renderShellPage(makeShellPage(UiPageId::Status), g_displayStatus);
+    renderStatusPage(g_displayStatus);
 #endif
     break;
-  case UiPageId::Activities:
-    renderActivitiesUi();
+  case UiPageId::Home:
+    renderHomeUi();
     break;
   case UiPageId::Media:
     renderDeviceControlUi();
     break;
   case UiPageId::Lights:
-  case UiPageId::Info:
+  case UiPageId::Room:
+  case UiPageId::More:
     renderShellPage(makeShellPage(g_currentPage), g_displayStatus);
     break;
-  case UiPageId::Status:
   default:
     renderStatusPage(g_displayStatus);
     break;
@@ -297,45 +297,35 @@ void renderCurrentPage() {
 
 UiPageId nextPage(UiPageId page) {
   switch (page) {
-  case UiPageId::SafeControl:
-    return UiPageId::Activities;
-  case UiPageId::Activities:
+  case UiPageId::Home:
     return UiPageId::Media;
   case UiPageId::Media:
     return UiPageId::Lights;
   case UiPageId::Lights:
-    return UiPageId::Info;
-  case UiPageId::Info:
-    return UiPageId::Status;
-  case UiPageId::Status:
+    return UiPageId::Room;
+  case UiPageId::Room:
+    return UiPageId::More;
+  case UiPageId::More:
+    return UiPageId::Home;
   default:
-#if REMOTE_ENABLE_SAFE_CONTROL_PAGE
-    return UiPageId::SafeControl;
-#else
-    return UiPageId::Activities;
-#endif
+    return UiPageId::Home;
   }
 }
 
 UiPageId previousPage(UiPageId page) {
   switch (page) {
-  case UiPageId::SafeControl:
-    return UiPageId::Status;
-  case UiPageId::Activities:
-#if REMOTE_ENABLE_SAFE_CONTROL_PAGE
-    return UiPageId::SafeControl;
-#else
-    return UiPageId::Status;
-#endif
+  case UiPageId::Home:
+    return UiPageId::More;
   case UiPageId::Media:
-    return UiPageId::Activities;
+    return UiPageId::Home;
   case UiPageId::Lights:
     return UiPageId::Media;
-  case UiPageId::Info:
+  case UiPageId::Room:
     return UiPageId::Lights;
-  case UiPageId::Status:
+  case UiPageId::More:
+    return UiPageId::Room;
   default:
-    return UiPageId::Info;
+    return UiPageId::Home;
   }
 }
 
@@ -376,28 +366,35 @@ const char *activityScriptForTap(int16_t x, int16_t y) {
   if (kMediaOffButton.contains(x, y)) {
     return "script.activity_all_off";
   }
+  
+  if (kQuickVolDown.contains(x, y)) return "script.remote_volume_down";
+  if (kQuickPrev.contains(x, y)) return "script.remote_previous";
+  if (kQuickPlay.contains(x, y)) return "script.remote_play_pause";
+  if (kQuickNext.contains(x, y)) return "script.remote_next";
+  if (kQuickVolUp.contains(x, y)) return "script.remote_volume_up";
+
   return nullptr;
 }
 
 bool pageForBottomNavTap(int16_t x, int16_t y, UiPageId &page) {
-  if (kBottomNavHomeButton.contains(x, y)) {
-    page = UiPageId::Activities;
+  if (kNavHome.contains(x, y)) {
+    page = UiPageId::Home;
     return true;
   }
-  if (kBottomNavMediaButton.contains(x, y)) {
+  if (kNavMedia.contains(x, y)) {
     page = UiPageId::Media;
     return true;
   }
-  if (kBottomNavLightsButton.contains(x, y)) {
+  if (kNavLights.contains(x, y)) {
     page = UiPageId::Lights;
     return true;
   }
-  if (kBottomNavInfoButton.contains(x, y)) {
-    page = UiPageId::Info;
+  if (kNavRoom.contains(x, y)) {
+    page = UiPageId::Room;
     return true;
   }
-  if (kBottomNavMoreButton.contains(x, y)) {
-    page = UiPageId::Status;
+  if (kNavMore.contains(x, y)) {
+    page = UiPageId::More;
     return true;
   }
   return false;
@@ -548,9 +545,9 @@ void handleDeviceControlTouch(const RemoteTouchEvent &event) {
 #endif
 }
 
-void handleActivitiesTouch(const RemoteTouchEvent &event) {
+void handleHomeTouch(const RemoteTouchEvent &event) {
 #if !REMOTE_ENABLE_TOUCH_TEST
-  if (g_currentPage != UiPageId::Activities || event.gesture != RemoteTouchGesture::Tap) {
+  if (g_currentPage != UiPageId::Home || event.gesture != RemoteTouchGesture::Tap) {
     return;
   }
 
@@ -562,14 +559,14 @@ void handleActivitiesTouch(const RemoteTouchEvent &event) {
   const char *script = activityScriptForTap(event.end.screenX, event.end.screenY);
   if (script == nullptr) {
     logPrintf(LogLevel::Info,
-              "Activities page tap outside action at screen=(%d,%d)",
+              "Home page tap outside action at screen=(%d,%d)",
               event.end.screenX,
               event.end.screenY);
     return;
   }
 
-  g_activityMessage = String("Would call ") + script + " (disabled)";
-  logPrintf(LogLevel::Info, "Activity action disabled: would call %s", script);
+  g_homeMessage = String("Would call ") + script + " (disabled)";
+  logPrintf(LogLevel::Info, "Home activity action disabled: would call %s", script);
 #else
   (void)event;
 #endif
@@ -679,7 +676,7 @@ void loopRemoteApp() {
     handlePageSwipe(event);
     handleBottomNavTouch(event);
     handleDeviceControlTouch(event);
-    handleActivitiesTouch(event);
+    handleHomeTouch(event);
     handleSafeControlTouch(event);
   }
   delay(10);

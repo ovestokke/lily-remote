@@ -6,18 +6,18 @@ bool UiRect::contains(int16_t px, int16_t py) const {
 
 const char *uiPageName(UiPageId page) {
   switch (page) {
-  case UiPageId::SafeControl:
-    return "safe_control";
-  case UiPageId::Activities:
-    return "activities";
+  case UiPageId::Home:
+    return "home";
   case UiPageId::Media:
     return "media";
   case UiPageId::Lights:
     return "lights";
-  case UiPageId::Info:
-    return "info";
-  case UiPageId::Status:
-    return "status";
+  case UiPageId::Room:
+    return "room";
+  case UiPageId::More:
+    return "more";
+  case UiPageId::SafeControl:
+    return "safe_control";
   case UiPageId::TouchTest:
     return "touch_test";
   }
