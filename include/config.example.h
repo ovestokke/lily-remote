@@ -18,5 +18,22 @@
 // Change to something you know exists, e.g. "light.stue" or "sensor.living_room_temperature".
 #define HA_TEST_ENTITY_ID "sensor.time"
 
+// Set to 1 only while testing safe write calls against the dummy helpers below.
+#define REMOTE_ENABLE_HA_WRITE_TEST 0
+#define HA_WRITE_TEST_ENTITY_ID "input_boolean.lily_remote_test"
+#define HA_WRITE_TEST_TEXT_ENTITY_ID "input_text.lily_remote_last_test"
+
+// Set to 1 only while visually testing 4-bit e-paper grayscale output.
+#define REMOTE_ENABLE_GRAYSCALE_TEST 0
+
+// Set to 1 only while calibrating touch coordinates/gestures.
+#define REMOTE_ENABLE_TOUCH_TEST 0
+
+// Set to 1 to boot into the safe dummy-helper control page.
+#define REMOTE_ENABLE_SAFE_CONTROL_PAGE 1
+
+// Set to 1 only while enumerating I2C devices during hardware bring-up.
+#define REMOTE_ENABLE_I2C_SCAN 0
+
 // Set to 1 later when deep-sleep behavior is implemented/tested.
 #define REMOTE_SLEEP_AFTER_BOOT 0
