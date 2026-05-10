@@ -28,6 +28,15 @@ Initial repo scaffold + bring-up firmware:
 
 Display, touch, partial refresh, WebSocket status updates, and deep sleep are next milestones.
 
+## Development Requirements
+
+To build the firmware and manage the UI assets for this project, you need the following software installed:
+
+*   **PlatformIO Core (CLI)**: For compiling and uploading the C++ firmware. You can also use the PlatformIO VS Code extension.
+*   **Python 3**: Required for the custom asset pipeline.
+*   **Pillow (Python Library)**: Used by `tools/generate_icons.py` to manipulate and convert generated images to 1-bit C++ byte arrays. (`pip install Pillow`)
+*   **Chromium-based Browser**: The icon generation script uses a headless browser (e.g., `brave`, `chrome`, or `chromium`) to perfectly render SVGs from the HTML prototypes before converting them.
+
 ## Quick start
 
 ```bash
