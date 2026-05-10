@@ -87,5 +87,6 @@ void renderDeviceControlPage(const RemoteDeviceControlPage &page);
 void renderLightsPage(const RemoteLightsPage &page);
 void renderRoomPage(const RemoteRoomPage &page);
 void renderMorePage(const RemoteMorePage &page);
+void renderSleepPage();
 void renderShellPage(const RemoteShellPage &page, const RemoteDisplayStatus &status);
 void renderTouchTestPage();

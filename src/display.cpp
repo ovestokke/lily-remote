@@ -899,6 +899,27 @@ void renderMorePage(const RemoteMorePage &page) {
   g_epaper.fullUpdate(CLEAR_SLOW, false);
 }
 
+void renderSleepPage() {
+  if (!g_displayReady && !initRemoteDisplay()) return;
+  Serial.println("Rendering sleep page...");
+  g_epaper.setMode(BB_MODE_1BPP);
+  g_epaper.fillScreen(BBEP_BLACK);
+  
+  setTextWhite();
+  g_epaper.setFont(FONT_16x16);
+  // Center text "Sleeping" (8 chars * 14px approx = ~112px wide. 540/2 = 270. 270 - 56 = 214)
+  drawText16("Sleeping", 214, 440);
+  
+  g_epaper.setFont(FONT_12x16);
+  // "Tap anywhere to wake" (20 chars * 10px approx = ~200px wide. 270 - 100 = 170)
+  drawText("Tap anywhere to wake", 170, 500);
+  
+  setTextBlack();
+  
+  // Pass true to blocking to ensure it finishes drawing before power is cut
+  g_epaper.fullUpdate(CLEAR_SLOW, true);
+}
+
 void renderShellPage(const RemoteShellPage &page, const RemoteDisplayStatus &status) {
   if (!g_displayReady && !initRemoteDisplay()) {
     return;
