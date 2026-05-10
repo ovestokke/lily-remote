@@ -52,24 +52,54 @@ constexpr UiRect kNavLights{220, 862, 100, 58};
 constexpr UiRect kNavRoom{320, 862, 98, 58};
 constexpr UiRect kNavMore{418, 862, 98, 58};
 
-constexpr UiRect kDeviceTeliaTab{40, 224, 115, 62};
-constexpr UiRect kDeviceWiimTab{155, 224, 115, 62};
-constexpr UiRect kDeviceTvTab{270, 224, 115, 62};
-constexpr UiRect kDeviceLs60Tab{385, 224, 115, 62};
+constexpr UiRect kTabTelia{24, 136, 123, 62};
+constexpr UiRect kTabWiim{147, 136, 123, 62};
+constexpr UiRect kTabTv{270, 136, 123, 62};
+constexpr UiRect kTabLs60{393, 136, 123, 62};
 
-constexpr UiRect kNavBackButton{68, 328, 199, 54};
-constexpr UiRect kNavHomeButton{273, 328, 199, 54};
-constexpr UiRect kNavUpButton{214, 410, 112, 112};
-constexpr UiRect kNavLeftButton{102, 522, 112, 112};
-constexpr UiRect kNavOkButton{214, 522, 112, 112};
-constexpr UiRect kNavRightButton{326, 522, 112, 112};
-constexpr UiRect kNavDownButton{214, 634, 112, 112};
+// Telia Panel
+constexpr UiRect kTeliaUp{151, 284, 127, 106};
+constexpr UiRect kTeliaLeft{24, 390, 127, 106};
+constexpr UiRect kTeliaOk{151, 390, 127, 106};
+constexpr UiRect kTeliaRight{278, 390, 128, 106};
+constexpr UiRect kTeliaDown{151, 496, 127, 106};
+constexpr UiRect kTeliaBack{420, 284, 96, 152};
+constexpr UiRect kTeliaHome{420, 450, 96, 152};
+constexpr UiRect kTeliaRewind{24, 616, 164, 64};
+constexpr UiRect kTeliaPlayPause{188, 616, 164, 64};
+constexpr UiRect kTeliaFastForward{352, 616, 164, 64};
+constexpr UiRect kTeliaPlex{24, 694, 164, 60};
+constexpr UiRect kTeliaYouTube{188, 694, 164, 60};
+constexpr UiRect kTeliaSpotify{352, 694, 164, 60};
 
-constexpr UiRect kDeviceWideButton{68, 328, 404, 112};
-constexpr UiRect kDeviceLeftTopButton{68, 456, 194, 112};
-constexpr UiRect kDeviceRightTopButton{278, 456, 194, 112};
-constexpr UiRect kDeviceLeftBottomButton{68, 584, 194, 112};
-constexpr UiRect kDeviceRightBottomButton{278, 584, 194, 112};
-constexpr UiRect kDeviceHintBox{68, 714, 404, 50};
+// WiiM Panel
+constexpr UiRect kWiimVolDown{24, 284, 164, 112};
+constexpr UiRect kWiimMute{188, 284, 164, 112};
+constexpr UiRect kWiimVolUp{352, 284, 164, 112};
+constexpr UiRect kWiimHdmi{24, 410, 238, 92};
+constexpr UiRect kWiimPhono{278, 410, 238, 92};
+constexpr UiRect kWiimAux{24, 514, 238, 92};
+constexpr UiRect kWiimWifi{278, 514, 238, 92};
+constexpr UiRect kWiimPrev{24, 620, 164, 64};
+constexpr UiRect kWiimPlay{188, 620, 164, 64};
+constexpr UiRect kWiimNext{352, 620, 164, 64};
+
+// TV Panel
+constexpr UiRect kTvPowerOn{24, 284, 164, 78};
+constexpr UiRect kTvPowerToggle{188, 284, 164, 78};
+constexpr UiRect kTvPowerOff{352, 284, 164, 78};
+constexpr UiRect kTvSourceTelia{24, 376, 238, 92};
+constexpr UiRect kTvSourcePs5{278, 376, 238, 92};
+constexpr UiRect kTvSourceHdmi4{24, 480, 238, 92};
+constexpr UiRect kTvSourceLive{278, 480, 238, 92};
+
+// LS60 Panel
+constexpr UiRect kLs60Restore{24, 284, 492, 106};
+constexpr UiRect kLs60Coax{24, 402, 164, 92};
+constexpr UiRect kLs60Vol71{188, 402, 164, 92};
+constexpr UiRect kLs60Analog{352, 402, 164, 92};
+constexpr UiRect kLs60Optical{24, 506, 164, 92};
+constexpr UiRect kLs60Tv{188, 506, 164, 92};
+constexpr UiRect kLs60Bluetooth{352, 506, 164, 92};
 
 const char *uiPageName(UiPageId page);

@@ -20,6 +20,22 @@ ICONS = [
     ("mdi-skip-next", 32, "kMdiSkipNext32Bmp"),
     ("mdi-play-pause", 38, "kMdiPlayPause38Bmp"),
     ("mdi-radiobox-marked", 28, "kMdiRadioMarked28Bmp"),
+    # Media Dashboard Icons
+    ("mdi-rewind", 30, "kMdiRewind30Bmp"),
+    ("mdi-fast-forward", 30, "kMdiFastForward30Bmp"),
+    ("mdi-play-pause", 30, "kMdiPlayPause30Bmp"),
+    ("mdi-set-top-box", 23, "kMdiBox23Bmp"),
+    ("mdi-music", 23, "kMdiMusic23Bmp"),
+    ("mdi-television-classic", 23, "kMdiTv23Bmp"),
+    ("mdi-speaker", 23, "kMdiSpeaker23Bmp"),
+    ("mdi-video-input-hdmi", 36, "kMdiHdmi36Bmp"),
+    ("mdi-record-player", 36, "kMdiRecord36Bmp"),
+    ("mdi-arrow-u-left-top-bold", 36, "kMdiBack36Bmp"),
+    ("mdi-wifi", 36, "kMdiWifi36Bmp"),
+    ("mdi-bluetooth", 36, "kMdiBluetooth36Bmp"),
+    ("mdi-volume-minus", 42, "kMdiVolMinus42Bmp"),
+    ("mdi-volume-mute", 42, "kMdiMute42Bmp"),
+    ("mdi-volume-plus", 42, "kMdiVolPlus42Bmp"),
 ]
 
 def get_svg_symbols(html_path):

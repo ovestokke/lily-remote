@@ -431,19 +431,19 @@ const char *deviceTargetLogName(RemoteDeviceTarget target) {
 }
 
 bool targetForDeviceTabTap(int16_t x, int16_t y, RemoteDeviceTarget &target) {
-  if (kDeviceTeliaTab.contains(x, y)) {
+  if (kTabTelia.contains(x, y)) {
     target = RemoteDeviceTarget::Telia;
     return true;
   }
-  if (kDeviceWiimTab.contains(x, y)) {
+  if (kTabWiim.contains(x, y)) {
     target = RemoteDeviceTarget::Wiim;
     return true;
   }
-  if (kDeviceTvTab.contains(x, y)) {
+  if (kTabTv.contains(x, y)) {
     target = RemoteDeviceTarget::Tv;
     return true;
   }
-  if (kDeviceLs60Tab.contains(x, y)) {
+  if (kTabLs60.contains(x, y)) {
     target = RemoteDeviceTarget::Ls60;
     return true;
   }
@@ -452,56 +452,58 @@ bool targetForDeviceTabTap(int16_t x, int16_t y, RemoteDeviceTarget &target) {
 
 const char *deviceActionForTap(RemoteDeviceTarget target, int16_t x, int16_t y) {
   if (target == RemoteDeviceTarget::Telia) {
-    if (kNavBackButton.contains(x, y)) return "script.remote_telia_nav back";
-    if (kNavHomeButton.contains(x, y)) return "script.remote_telia_nav home";
-    if (kNavUpButton.contains(x, y)) return "script.remote_telia_nav up";
-    if (kNavDownButton.contains(x, y)) return "script.remote_telia_nav down";
-    if (kNavLeftButton.contains(x, y)) return "script.remote_telia_nav left";
-    if (kNavRightButton.contains(x, y)) return "script.remote_telia_nav right";
-    if (kNavOkButton.contains(x, y)) return "script.remote_telia_nav ok";
+    if (kTeliaUp.contains(x, y)) return "script.remote_telia_nav up";
+    if (kTeliaLeft.contains(x, y)) return "script.remote_telia_nav left";
+    if (kTeliaOk.contains(x, y)) return "script.remote_telia_nav ok";
+    if (kTeliaRight.contains(x, y)) return "script.remote_telia_nav right";
+    if (kTeliaDown.contains(x, y)) return "script.remote_telia_nav down";
+    if (kTeliaBack.contains(x, y)) return "script.remote_telia_nav back";
+    if (kTeliaHome.contains(x, y)) return "script.remote_telia_nav home";
+    if (kTeliaRewind.contains(x, y)) return "script.remote_telia_command MEDIA_REWIND";
+    if (kTeliaPlayPause.contains(x, y)) return "script.remote_telia_command MEDIA_PLAY_PAUSE";
+    if (kTeliaFastForward.contains(x, y)) return "script.remote_telia_command MEDIA_FAST_FORWARD";
+    if (kTeliaPlex.contains(x, y)) return "script.remote_telia_launch_plex";
+    if (kTeliaYouTube.contains(x, y)) return "script.remote_telia_launch_youtube";
+    if (kTeliaSpotify.contains(x, y)) return "script.remote_telia_launch_spotify";
     return nullptr;
   }
 
-  if (kDeviceWideButton.contains(x, y)) {
-    switch (target) {
-    case RemoteDeviceTarget::Wiim: return "script.remote_volume_up";
-    case RemoteDeviceTarget::Tv: return "script.remote_tv_power toggle";
-    case RemoteDeviceTarget::Ls60: return "script.remote_ls60_restore_unity_gain";
-    default: return nullptr;
-    }
+  if (target == RemoteDeviceTarget::Wiim) {
+    if (kWiimVolDown.contains(x, y)) return "script.remote_volume_down";
+    if (kWiimMute.contains(x, y)) return "script.remote_mute";
+    if (kWiimVolUp.contains(x, y)) return "script.remote_volume_up";
+    if (kWiimHdmi.contains(x, y)) return "script.remote_wiim_select_hdmi";
+    if (kWiimPhono.contains(x, y)) return "script.remote_wiim_select_phono";
+    if (kWiimAux.contains(x, y)) return "script.remote_wiim_select_aux";
+    if (kWiimWifi.contains(x, y)) return "script.remote_wiim_select_wifi";
+    if (kWiimPrev.contains(x, y)) return "script.remote_previous";
+    if (kWiimPlay.contains(x, y)) return "script.remote_play_pause";
+    if (kWiimNext.contains(x, y)) return "script.remote_next";
+    return nullptr;
   }
-  if (kDeviceLeftTopButton.contains(x, y)) {
-    switch (target) {
-    case RemoteDeviceTarget::Wiim: return "script.remote_wiim_select_source TV";
-    case RemoteDeviceTarget::Tv: return "script.remote_tv_select_source Sagemcom Set-Top Box";
-    case RemoteDeviceTarget::Ls60: return "script.remote_ls60_select_source coaxial";
-    default: return nullptr;
-    }
+
+  if (target == RemoteDeviceTarget::Tv) {
+    if (kTvPowerOn.contains(x, y)) return "script.remote_tv_power on";
+    if (kTvPowerToggle.contains(x, y)) return "script.remote_tv_power toggle";
+    if (kTvPowerOff.contains(x, y)) return "script.remote_tv_power off";
+    if (kTvSourceTelia.contains(x, y)) return "script.remote_tv_select_source Telia";
+    if (kTvSourcePs5.contains(x, y)) return "script.remote_tv_select_source PS5";
+    if (kTvSourceHdmi4.contains(x, y)) return "script.remote_tv_select_source HDMI4";
+    if (kTvSourceLive.contains(x, y)) return "script.remote_tv_select_source LiveTV";
+    return nullptr;
   }
-  if (kDeviceRightTopButton.contains(x, y)) {
-    switch (target) {
-    case RemoteDeviceTarget::Wiim: return "script.remote_wiim_select_source Phono In";
-    case RemoteDeviceTarget::Tv: return "script.remote_tv_select_source PS5 Game Console";
-    case RemoteDeviceTarget::Ls60: return "script.remote_ls60_set_volume 71";
-    default: return nullptr;
-    }
+
+  if (target == RemoteDeviceTarget::Ls60) {
+    if (kLs60Restore.contains(x, y)) return "script.remote_ls60_restore_unity_gain";
+    if (kLs60Coax.contains(x, y)) return "script.remote_ls60_select_coaxial";
+    if (kLs60Vol71.contains(x, y)) return "script.remote_ls60_set_volume 71";
+    if (kLs60Analog.contains(x, y)) return "script.remote_ls60_select_analog";
+    if (kLs60Optical.contains(x, y)) return "script.remote_ls60_select_optical";
+    if (kLs60Tv.contains(x, y)) return "script.remote_ls60_select_tv";
+    if (kLs60Bluetooth.contains(x, y)) return "script.remote_ls60_select_bluetooth";
+    return nullptr;
   }
-  if (kDeviceLeftBottomButton.contains(x, y)) {
-    switch (target) {
-    case RemoteDeviceTarget::Wiim: return "script.remote_mute";
-    case RemoteDeviceTarget::Tv: return "script.remote_tv_select_source Plex";
-    case RemoteDeviceTarget::Ls60: return "ls60 volume_up recovery TODO";
-    default: return nullptr;
-    }
-  }
-  if (kDeviceRightBottomButton.contains(x, y)) {
-    switch (target) {
-    case RemoteDeviceTarget::Wiim: return "script.remote_volume_down";
-    case RemoteDeviceTarget::Tv: return "script.remote_tv_select_source Netflix";
-    case RemoteDeviceTarget::Ls60: return "ls60 volume_down recovery TODO";
-    default: return nullptr;
-    }
-  }
+
   return nullptr;
 }
 

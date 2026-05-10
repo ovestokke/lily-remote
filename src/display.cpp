@@ -278,105 +278,154 @@ void drawDeviceTab(const UiRect &rect,
   const bool active = tabTarget == currentTarget;
   if (active) {
     g_epaper.fillRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
-    drawMdiIcon(iconBmp, rect.x + 46, rect.y + 7, BBEP_WHITE);
-    drawInvertedText(label, rect.x + 30, rect.y + 37);
+    drawMdiIcon(iconBmp, rect.x + (rect.w / 2) - 11, rect.y + 6, BBEP_WHITE);
+    setTextWhite();
+    drawText8(label, rect.x + (rect.w / 2) - (label.length() * 4), rect.y + 36);
+    setTextBlack();
   } else {
-    drawMdiIcon(iconBmp, rect.x + 46, rect.y + 7, BBEP_BLACK);
-    drawText(label, rect.x + 30, rect.y + 37);
+    drawMdiIcon(iconBmp, rect.x + (rect.w / 2) - 11, rect.y + 6, BBEP_BLACK);
+    drawText8(label, rect.x + (rect.w / 2) - (label.length() * 4), rect.y + 36);
   }
 }
 
 void drawDeviceTabs(RemoteDeviceTarget target) {
-  g_epaper.drawRect(40, 224, 460, 62, BBEP_BLACK);
-  g_epaper.drawLine(155, 224, 155, 286, BBEP_BLACK);
-  g_epaper.drawLine(270, 224, 270, 286, BBEP_BLACK);
-  g_epaper.drawLine(385, 224, 385, 286, BBEP_BLACK);
-  drawDeviceTab(kDeviceTeliaTab, "TELIA", RemoteDeviceTarget::Telia, target, kMdiBox23Bmp);
-  drawDeviceTab(kDeviceWiimTab, "WIIM", RemoteDeviceTarget::Wiim, target, kMdiMusic23Bmp);
-  drawDeviceTab(kDeviceTvTab, "TV", RemoteDeviceTarget::Tv, target, kMdiTv23Bmp);
-  drawDeviceTab(kDeviceLs60Tab, "LS60", RemoteDeviceTarget::Ls60, target, kMdiSpeaker23Bmp);
+  g_epaper.drawRect(24, 136, 492, 62, BBEP_BLACK);
+  g_epaper.drawLine(147, 136, 147, 198, BBEP_BLACK);
+  g_epaper.drawLine(270, 136, 270, 198, BBEP_BLACK);
+  g_epaper.drawLine(393, 136, 393, 198, BBEP_BLACK);
+  drawDeviceTab(kTabTelia, "TELIA", RemoteDeviceTarget::Telia, target, kMdiBox23Bmp);
+  drawDeviceTab(kTabWiim, "WIIM", RemoteDeviceTarget::Wiim, target, kMdiMusic23Bmp);
+  drawDeviceTab(kTabTv, "TV", RemoteDeviceTarget::Tv, target, kMdiTv23Bmp);
+  drawDeviceTab(kTabLs60, "LS60", RemoteDeviceTarget::Ls60, target, kMdiSpeaker23Bmp);
 }
 
-void drawPanelFrame() {
-  g_epaper.drawRect(40, 304, 460, 480, BBEP_BLACK);
-  g_epaper.drawRect(41, 305, 458, 478, BBEP_BLACK);
-  g_epaper.fillRect(40, 304, 12, 480, BBEP_BLACK);
+void drawPanelTitle(const char *left, const char *right) {
+  g_epaper.fillRect(24, 216, 492, 54, BBEP_BLACK);
+  setTextWhite();
+  drawText16(left, 40, 234);
+  drawText8(right, 516 - 16 - (strlen(right) * 8), 238);
+  setTextBlack();
 }
 
-void drawTopActionButton(const UiRect &rect, const String &label, const uint8_t *iconBmp) {
-  g_epaper.drawRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
-  drawMdiIcon(iconBmp, rect.x + 14, rect.y + 13, BBEP_BLACK);
-  drawText(label, rect.x + 54, rect.y + 20);
-}
-
-void drawDpadKey(const UiRect &rect, const String &label, const uint8_t *iconBmp) {
+void drawSourceButton(const UiRect &rect, const String &label, const String &sub, const uint8_t *iconBmp, bool active = false) {
   g_epaper.drawRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
   g_epaper.drawRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2, BBEP_BLACK);
-  drawMdiIcon(iconBmp, rect.x + 35, rect.y + 22, BBEP_BLACK);
-  drawText8(label, rect.x + 42, rect.y + 80);
+  if (active) {
+    g_epaper.fillRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
+    setTextWhite();
+    drawMdiIcon(iconBmp, rect.x + 14, rect.y + (rect.h / 2) - 18, BBEP_WHITE);
+    drawText16(label, rect.x + 64, rect.y + 24);
+    drawText(sub, rect.x + 64, rect.y + 54);
+    setTextBlack();
+  } else {
+    drawMdiIcon(iconBmp, rect.x + 14, rect.y + (rect.h / 2) - 18, BBEP_BLACK);
+    drawText16(label, rect.x + 64, rect.y + 24);
+    drawText(sub, rect.x + 64, rect.y + 54);
+  }
 }
 
-void drawOkKey(const UiRect &rect) {
-  g_epaper.fillRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
-  g_epaper.drawCircle(rect.x + 56, rect.y + 56, 28, BBEP_WHITE);
-  g_epaper.drawCircle(rect.x + 56, rect.y + 56, 29, BBEP_WHITE);
-  drawInvertedText("OK", rect.x + 47, rect.y + 50);
+void drawTransportButton(const UiRect &rect, const uint8_t *iconBmp) {
+  g_epaper.drawRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
+  g_epaper.drawRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2, BBEP_BLACK);
+  drawMdiIcon(iconBmp, rect.x + (rect.w / 2) - 15, rect.y + (rect.h / 2) - 15, BBEP_BLACK);
 }
 
-void drawDeviceGridButton(const UiRect &rect, const String &label, const uint8_t *iconBmp, bool inverted = false) {
+void drawSideButton(const UiRect &rect, const String &label, bool inverted = false) {
   g_epaper.drawRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
   g_epaper.drawRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2, BBEP_BLACK);
   if (inverted) {
     g_epaper.fillRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
-    drawMdiIcon(iconBmp, rect.x + 24, rect.y + 32, BBEP_WHITE);
     setTextWhite();
-    drawText16(label, rect.x + 94, rect.y + 48);
+    drawText16(label, rect.x + (rect.w / 2) - (label.length() * 8), rect.y + (rect.h / 2) - 8);
     setTextBlack();
-    return;
+  } else {
+    drawText16(label, rect.x + (rect.w / 2) - (label.length() * 8), rect.y + (rect.h / 2) - 8);
   }
-  drawMdiIcon(iconBmp, rect.x + rect.w / 2 - 24, rect.y + 20, BBEP_BLACK);
-  drawText16(label, rect.x + 24, rect.y + 78);
-}
-
-void drawHintBox(const String &hint) {
-  g_epaper.drawRect(kDeviceHintBox.x, kDeviceHintBox.y, kDeviceHintBox.w, kDeviceHintBox.h, BBEP_BLACK);
-  drawText8(hint, kDeviceHintBox.x + 14, kDeviceHintBox.y + 20);
 }
 
 void renderTeliaControls() {
-  drawTopActionButton(kNavBackButton, "Back", kMdiBack28Bmp);
-  drawTopActionButton(kNavHomeButton, "Home", kMdiHome28Bmp);
-  drawDpadKey(kNavUpButton, "UP", kMdiUp42Bmp);
-  drawDpadKey(kNavLeftButton, "LEFT", kMdiLeft42Bmp);
-  drawOkKey(kNavOkButton);
-  drawDpadKey(kNavRightButton, "RIGHT", kMdiRight42Bmp);
-  drawDpadKey(kNavDownButton, "DOWN", kMdiDown42Bmp);
+  drawPanelTitle("Telia", "navigation");
+  
+  // D-Pad Grid
+  g_epaper.drawRect(24, 284, 382, 318, BBEP_BLACK);
+  g_epaper.drawRect(25, 285, 380, 316, BBEP_BLACK);
+  
+  // Grid lines
+  g_epaper.drawLine(151, 284, 151, 602, BBEP_BLACK);
+  g_epaper.drawLine(278, 284, 278, 602, BBEP_BLACK);
+  g_epaper.drawLine(24, 390, 406, 390, BBEP_BLACK);
+  g_epaper.drawLine(24, 496, 406, 496, BBEP_BLACK);
+
+  drawMdiIcon(kMdiUp42Bmp, kTeliaUp.x + (kTeliaUp.w - 42) / 2, kTeliaUp.y + (kTeliaUp.h - 42) / 2);
+  drawMdiIcon(kMdiLeft42Bmp, kTeliaLeft.x + (kTeliaLeft.w - 42) / 2, kTeliaLeft.y + (kTeliaLeft.h - 42) / 2);
+  
+  g_epaper.fillRect(kTeliaOk.x, kTeliaOk.y, kTeliaOk.w, kTeliaOk.h, BBEP_BLACK);
+  setTextWhite();
+  drawText16("OK", kTeliaOk.x + (kTeliaOk.w - 32) / 2, kTeliaOk.y + (kTeliaOk.h - 16) / 2);
+  setTextBlack();
+  
+  drawMdiIcon(kMdiRight42Bmp, kTeliaRight.x + (kTeliaRight.w - 42) / 2, kTeliaRight.y + (kTeliaRight.h - 42) / 2);
+  drawMdiIcon(kMdiDown42Bmp, kTeliaDown.x + (kTeliaDown.w - 42) / 2, kTeliaDown.y + (kTeliaDown.h - 42) / 2);
+
+  drawSideButton(kTeliaBack, "BACK");
+  drawSideButton(kTeliaHome, "HOME");
+
+  drawTransportButton(kTeliaRewind, kMdiRewind30Bmp);
+  drawTransportButton(kTeliaPlayPause, kMdiPlayPause30Bmp);
+  drawTransportButton(kTeliaFastForward, kMdiFastForward30Bmp);
+
+  drawSideButton(kTeliaPlex, "PLEX");
+  drawSideButton(kTeliaYouTube, "YOUTUBE");
+  drawSideButton(kTeliaSpotify, "SPOTIFY");
 }
 
 void renderWiimControls() {
-  drawDeviceGridButton(kDeviceWideButton, "Volume +", kMdiVolume48Bmp, true);
-  drawDeviceGridButton(kDeviceLeftTopButton, "HDMI", kMdiHdmi48Bmp);
-  drawDeviceGridButton(kDeviceRightTopButton, "Phono", kMdiRecord48Bmp);
-  drawDeviceGridButton(kDeviceLeftBottomButton, "Mute", kMdiMute48Bmp);
-  drawDeviceGridButton(kDeviceRightBottomButton, "Volume -", kMdiVolume48Bmp);
+  drawPanelTitle("WiiM", "preamp");
+  
+  drawSideButton(kWiimVolDown, "VOL -");
+  drawSideButton(kWiimMute, "MUTE", true);
+  drawSideButton(kWiimVolUp, "VOL +");
+
+  drawSourceButton(kWiimHdmi, "HDMI", "TV input", kMdiHdmi36Bmp);
+  drawSourceButton(kWiimPhono, "Phono", "records", kMdiRecord36Bmp);
+  drawSourceButton(kWiimAux, "Aux", "line in", kMdiBack36Bmp);
+  drawSourceButton(kWiimWifi, "Wi-Fi", "network", kMdiWifi36Bmp);
+
+  drawTransportButton(kWiimPrev, kMdiSkipPrev32Bmp);
+  drawTransportButton(kWiimPlay, kMdiPlayPause30Bmp);
+  drawTransportButton(kWiimNext, kMdiSkipNext32Bmp);
 }
 
 void renderTvControls() {
-  drawDeviceGridButton(kDeviceWideButton, "TV Power", kMdiPower48Bmp, true);
-  drawDeviceGridButton(kDeviceLeftTopButton, "Telia", kMdiBox23Bmp);
-  drawDeviceGridButton(kDeviceRightTopButton, "PS5", kMdiHdmi48Bmp);
-  drawDeviceGridButton(kDeviceLeftBottomButton, "Plex", kMdiTv48Bmp);
-  drawDeviceGridButton(kDeviceRightBottomButton, "Netflix", kMdiTv48Bmp);
-  drawHintBox("TV USES INPUT + POWER ONLY");
+  drawPanelTitle("TV", "power + input");
+  
+  drawSideButton(kTvPowerOn, "ON");
+  drawSideButton(kTvPowerToggle, "TOGGLE", true);
+  drawSideButton(kTvPowerOff, "OFF");
+
+  drawSourceButton(kTvSourceTelia, "Telia", "Sagemcom", kMdiBox23Bmp);
+  drawSourceButton(kTvSourcePs5, "PS5", "console", kMdiHdmi36Bmp);
+  drawSourceButton(kTvSourceHdmi4, "HDMI 4", "spare", kMdiHdmi36Bmp);
+  drawSourceButton(kTvSourceLive, "Live TV", "fallback", kMdiTv23Bmp);
 }
 
 void renderLs60Controls() {
-  drawDeviceGridButton(kDeviceWideButton, "Unity 71", kMdiSpeaker48Bmp, true);
-  drawDeviceGridButton(kDeviceLeftTopButton, "Coax", kMdiHdmi48Bmp);
-  drawDeviceGridButton(kDeviceRightTopButton, "Vol 71", kMdiVolume48Bmp);
-  drawDeviceGridButton(kDeviceLeftBottomButton, "Vol +", kMdiVolume48Bmp);
-  drawDeviceGridButton(kDeviceRightBottomButton, "Vol -", kMdiVolume48Bmp);
-  drawHintBox("RECOVERY ONLY - WIIM IS NORMAL VOLUME");
+  drawPanelTitle("LS60", "recovery");
+  
+  g_epaper.fillRect(kLs60Restore.x, kLs60Restore.y, kLs60Restore.w, kLs60Restore.h, BBEP_BLACK);
+  setTextWhite();
+  drawMdiIcon(kMdiSpeaker23Bmp, kLs60Restore.x + 18, kLs60Restore.y + 41, BBEP_WHITE);
+  drawText16("Restore unity", kLs60Restore.x + 60, kLs60Restore.y + 35);
+  drawText("Coaxial + volume 71", kLs60Restore.x + 60, kLs60Restore.y + 65);
+  drawText16("71", kLs60Restore.x + kLs60Restore.w - 60, kLs60Restore.y + 45);
+  setTextBlack();
+
+  drawSourceButton(kLs60Coax, "Coax", "correct", kMdiHdmi36Bmp);
+  drawSourceButton(kLs60Vol71, "Vol 71", "unity", kMdiVolPlus42Bmp);
+  drawSourceButton(kLs60Analog, "Analog", "source", kMdiBack36Bmp);
+  drawSourceButton(kLs60Optical, "Optical", "source", kMdiHdmi36Bmp);
+  drawSourceButton(kLs60Tv, "TV", "source", kMdiTv23Bmp);
+  drawSourceButton(kLs60Bluetooth, "Bluetooth", "source", kMdiBluetooth36Bmp);
 }
 
 void drawTouchTarget(int32_t x, int32_t y, const String &label) {
@@ -685,14 +734,11 @@ void renderDeviceControlPage(const RemoteDeviceControlPage &page) {
   setTextBlack();
   g_epaper.setTextWrap(false);
 
-  constexpr int32_t margin = 20;
+  constexpr int32_t margin = 24;
   g_epaper.drawRect(margin, margin, kUiScreenWidth - 2 * margin, kUiScreenHeight - 2 * margin, BBEP_BLACK);
 
   drawTopBar("Remote", page.status.haApiOk);
-  drawDeviceTargetBox(page.target);
-  drawHLine(20, 206, kUiScreenWidth - 40);
   drawDeviceTabs(page.target);
-  drawPanelFrame();
 
   switch (page.target) {
   case RemoteDeviceTarget::Telia:
