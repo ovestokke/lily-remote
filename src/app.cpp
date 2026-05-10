@@ -226,47 +226,31 @@ void renderDeviceControlUi() {
   renderDeviceControlPage(page);
 }
 
-RemoteShellPage makeShellPage(UiPageId pageId) {
-  RemoteShellPage page;
-  page.pageId = pageId;
-  page.footerHint = "Swipe left/right. Real actions still disabled.";
+void renderLightsUi() {
+  RemoteLightsPage page;
+  page.status = g_displayStatus;
+  page.activeScene = "tv"; // Dummy for now
+  page.message = g_uiMessage;
+  renderLightsPage(page);
+}
 
-  switch (pageId) {
-  case UiPageId::Home:
-    page.title = "Home";
-    page.subtitle = "HA script contract confirmed";
-    page.primary = "Watch TV: script.activity_watch_tv | PS5: script.activity_play_ps5 | Music: script.activity_stream_music";
-    page.secondary = "Records: script.activity_listen_records | Off: script.activity_all_off. Buttons still disabled until UI action policy is added.";
-    break;
-  case UiPageId::Media:
-    page.title = "Media";
-    page.subtitle = "HA media helpers confirmed";
-    page.primary = "Volume/mute/playback use script.remote_volume_up/down/mute/play_pause/next/previous.";
-    page.secondary = "Source buttons use script.remote_select_hdmi and script.remote_select_phono. Volume should not full-refresh per tap.";
-    break;
-  case UiPageId::Lights:
-    page.title = "Lights";
-    page.subtitle = "HA lights helper confirmed";
-    page.primary = "Use script.remote_living_room_lights with preset: bright, dimmed, relax, nightlight, read, tv, records, off.";
-    page.secondary = "Next: choose which presets deserve large e-ink buttons before enabling scene calls.";
-    break;
-  case UiPageId::Room:
-    page.title = "Room";
-    page.subtitle = "Remote diagnostics";
-    page.primary = String("WiFi: ") + (g_displayStatus.wifiConnected ? g_displayStatus.ipAddress : "offline") +
-                   " RSSI " + String(g_displayStatus.rssi) + " dBm";
-    page.secondary = String("FW: ") + g_displayStatus.firmwareVersion +
-                     " | HA: " + (g_displayStatus.haApiOk ? g_displayStatus.haMessage : "unavailable");
-    break;
-  case UiPageId::More:
-  default:
-    page.title = "More";
-    page.subtitle = "Home Assistant summary";
-    page.primary = "Read-only status view for the living-room remote.";
-    page.secondary = String("Test entity: ") + g_displayStatus.entityId;
-    break;
-  }
-  return page;
+void renderRoomUi() {
+  RemoteRoomPage page;
+  page.status = g_displayStatus;
+  page.activityState = "Watch TV";
+  page.tvState = "On · Telia";
+  page.wiimState = "TV · Volume 20";
+  page.ls60State = "Coax · 71";
+  page.lightsState = "Watch TV";
+  page.message = g_uiMessage;
+  renderRoomPage(page);
+}
+
+void renderMoreUi() {
+  RemoteMorePage page;
+  page.status = g_displayStatus;
+  page.message = g_uiMessage;
+  renderMorePage(page);
 }
 
 void renderCurrentPage() {
@@ -285,9 +269,13 @@ void renderCurrentPage() {
     renderDeviceControlUi();
     break;
   case UiPageId::Lights:
+    renderLightsUi();
+    break;
   case UiPageId::Room:
+    renderRoomUi();
+    break;
   case UiPageId::More:
-    renderShellPage(makeShellPage(g_currentPage), g_displayStatus);
+    renderMoreUi();
     break;
   default:
     renderStatusPage(g_displayStatus);
@@ -349,29 +337,27 @@ void handlePageSwipe(const RemoteTouchEvent &event) {
   (void)event;
 #endif
 }
-
 const char *activityScriptForTap(int16_t x, int16_t y) {
   if (kActivityWatchTvButton.contains(x, y)) {
-    return "script.activity_watch_tv";
+    return "activity_watch_tv";
   }
   if (kActivityPs5Button.contains(x, y)) {
-    return "script.activity_play_ps5";
+    return "activity_play_ps5";
   }
   if (kActivityMusicButton.contains(x, y)) {
-    return "script.activity_stream_music";
+    return "activity_stream_music";
   }
   if (kActivityRecordsButton.contains(x, y)) {
-    return "script.activity_listen_records";
+    return "activity_listen_records";
   }
   if (kMediaOffButton.contains(x, y)) {
-    return "script.activity_all_off";
+    return "activity_all_off";
   }
-  
-  if (kQuickVolDown.contains(x, y)) return "script.remote_volume_down";
-  if (kQuickPrev.contains(x, y)) return "script.remote_previous";
-  if (kQuickPlay.contains(x, y)) return "script.remote_play_pause";
-  if (kQuickNext.contains(x, y)) return "script.remote_next";
-  if (kQuickVolUp.contains(x, y)) return "script.remote_volume_up";
+  if (kQuickVolDown.contains(x, y)) return "remote_volume_down";
+  if (kQuickPrev.contains(x, y)) return "remote_previous";
+  if (kQuickPlay.contains(x, y)) return "remote_play_pause";
+  if (kQuickNext.contains(x, y)) return "remote_next";
+  if (kQuickVolUp.contains(x, y)) return "remote_volume_up";
 
   return nullptr;
 }
@@ -450,61 +436,52 @@ bool targetForDeviceTabTap(int16_t x, int16_t y, RemoteDeviceTarget &target) {
   return false;
 }
 
-const char *deviceActionForTap(RemoteDeviceTarget target, int16_t x, int16_t y) {
+bool executeDeviceActionForTap(RemoteDeviceTarget target, int16_t x, int16_t y, String &outLog) {
   if (target == RemoteDeviceTarget::Telia) {
-    if (kTeliaUp.contains(x, y)) return "script.remote_telia_nav up";
-    if (kTeliaLeft.contains(x, y)) return "script.remote_telia_nav left";
-    if (kTeliaOk.contains(x, y)) return "script.remote_telia_nav ok";
-    if (kTeliaRight.contains(x, y)) return "script.remote_telia_nav right";
-    if (kTeliaDown.contains(x, y)) return "script.remote_telia_nav down";
-    if (kTeliaBack.contains(x, y)) return "script.remote_telia_nav back";
-    if (kTeliaHome.contains(x, y)) return "script.remote_telia_nav home";
-    if (kTeliaRewind.contains(x, y)) return "script.remote_telia_command MEDIA_REWIND";
-    if (kTeliaPlayPause.contains(x, y)) return "script.remote_telia_command MEDIA_PLAY_PAUSE";
-    if (kTeliaFastForward.contains(x, y)) return "script.remote_telia_command MEDIA_FAST_FORWARD";
-    if (kTeliaPlex.contains(x, y)) return "script.remote_telia_launch_plex";
-    if (kTeliaYouTube.contains(x, y)) return "script.remote_telia_launch_youtube";
-    if (kTeliaSpotify.contains(x, y)) return "script.remote_telia_launch_spotify";
-    return nullptr;
+    if (kTeliaUp.contains(x, y)) { outLog = "Telia Up"; return g_haClient.callScript("remote_telia_nav", "{\"button\":\"up\"}"); }
+    if (kTeliaLeft.contains(x, y)) { outLog = "Telia Left"; return g_haClient.callScript("remote_telia_nav", "{\"button\":\"left\"}"); }
+    if (kTeliaOk.contains(x, y)) { outLog = "Telia OK"; return g_haClient.callScript("remote_telia_nav", "{\"button\":\"ok\"}"); }
+    if (kTeliaRight.contains(x, y)) { outLog = "Telia Right"; return g_haClient.callScript("remote_telia_nav", "{\"button\":\"right\"}"); }
+    if (kTeliaDown.contains(x, y)) { outLog = "Telia Down"; return g_haClient.callScript("remote_telia_nav", "{\"button\":\"down\"}"); }
+    if (kTeliaBack.contains(x, y)) { outLog = "Telia Back"; return g_haClient.callScript("remote_telia_nav", "{\"button\":\"back\"}"); }
+    if (kTeliaHome.contains(x, y)) { outLog = "Telia Home"; return g_haClient.callScript("remote_telia_nav", "{\"button\":\"home\"}"); }
+    if (kTeliaRewind.contains(x, y)) { outLog = "Telia Rewind"; return g_haClient.callScript("remote_telia_command", "{\"command\":\"MEDIA_REWIND\"}"); }
+    if (kTeliaPlayPause.contains(x, y)) { outLog = "Telia Play/Pause"; return g_haClient.callScript("remote_telia_command", "{\"command\":\"MEDIA_PLAY_PAUSE\"}"); }
+    if (kTeliaFastForward.contains(x, y)) { outLog = "Telia FastForward"; return g_haClient.callScript("remote_telia_command", "{\"command\":\"MEDIA_FAST_FORWARD\"}"); }
+    if (kTeliaPlex.contains(x, y)) { outLog = "Telia Plex"; return g_haClient.callScript("remote_telia_launch_plex"); }
+    if (kTeliaYouTube.contains(x, y)) { outLog = "Telia YouTube"; return g_haClient.callScript("remote_telia_launch_youtube"); }
+    if (kTeliaSpotify.contains(x, y)) { outLog = "Telia Spotify"; return g_haClient.callScript("remote_telia_launch_spotify"); }
+  } else if (target == RemoteDeviceTarget::Wiim) {
+    if (kWiimVolDown.contains(x, y)) { outLog = "WiiM VolDown"; return g_haClient.callScript("remote_volume_down"); }
+    if (kWiimMute.contains(x, y)) { outLog = "WiiM Mute"; return g_haClient.callScript("remote_mute"); }
+    if (kWiimVolUp.contains(x, y)) { outLog = "WiiM VolUp"; return g_haClient.callScript("remote_volume_up"); }
+    if (kWiimHdmi.contains(x, y)) { outLog = "WiiM HDMI"; return g_haClient.callScript("remote_wiim_select_hdmi"); }
+    if (kWiimPhono.contains(x, y)) { outLog = "WiiM Phono"; return g_haClient.callScript("remote_wiim_select_phono"); }
+    if (kWiimAux.contains(x, y)) { outLog = "WiiM Aux"; return g_haClient.callScript("remote_wiim_select_aux"); }
+    if (kWiimWifi.contains(x, y)) { outLog = "WiiM WiFi"; return g_haClient.callScript("remote_wiim_select_wifi"); }
+    if (kWiimPrev.contains(x, y)) { outLog = "WiiM Prev"; return g_haClient.callScript("remote_previous"); }
+    if (kWiimPlay.contains(x, y)) { outLog = "WiiM Play"; return g_haClient.callScript("remote_play_pause"); }
+    if (kWiimNext.contains(x, y)) { outLog = "WiiM Next"; return g_haClient.callScript("remote_next"); }
+  } else if (target == RemoteDeviceTarget::Tv) {
+    if (kTvPowerOn.contains(x, y)) { outLog = "TV Power On"; return g_haClient.callScript("remote_tv_power", "{\"power_action\":\"on\"}"); }
+    if (kTvPowerToggle.contains(x, y)) { outLog = "TV Power Toggle"; return g_haClient.callScript("remote_tv_power", "{\"power_action\":\"toggle\"}"); }
+    if (kTvPowerOff.contains(x, y)) { outLog = "TV Power Off"; return g_haClient.callScript("remote_tv_power", "{\"power_action\":\"off\"}"); }
+    if (kTvSourceTelia.contains(x, y)) { outLog = "TV Source Telia"; return g_haClient.callScript("remote_tv_select_source", "{\"source\":\"Sagemcom Set-Top Box\"}"); }
+    if (kTvSourcePs5.contains(x, y)) { outLog = "TV Source PS5"; return g_haClient.callScript("remote_tv_select_source", "{\"source\":\"PS5 Game Console\"}"); }
+    if (kTvSourceHdmi4.contains(x, y)) { outLog = "TV Source HDMI4"; return g_haClient.callScript("remote_tv_select_source", "{\"source\":\"HDMI 4\"}"); }
+    if (kTvSourceLive.contains(x, y)) { outLog = "TV Source Live"; return g_haClient.callScript("remote_tv_select_source", "{\"source\":\"Live TV\"}"); }
+  } else if (target == RemoteDeviceTarget::Ls60) {
+    if (kLs60Restore.contains(x, y)) { outLog = "LS60 Restore"; return g_haClient.callScript("remote_ls60_restore_unity_gain"); }
+    if (kLs60Coax.contains(x, y)) { outLog = "LS60 Coax"; return g_haClient.callScript("remote_ls60_select_coaxial"); }
+    if (kLs60Vol71.contains(x, y)) { outLog = "LS60 Vol 71"; return g_haClient.callScript("remote_ls60_set_volume", "{\"volume\":71}"); }
+    if (kLs60Analog.contains(x, y)) { outLog = "LS60 Analog"; return g_haClient.callScript("remote_ls60_select_analog"); }
+    if (kLs60Optical.contains(x, y)) { outLog = "LS60 Optical"; return g_haClient.callScript("remote_ls60_select_optical"); }
+    if (kLs60Tv.contains(x, y)) { outLog = "LS60 TV"; return g_haClient.callScript("remote_ls60_select_tv"); }
+    if (kLs60Bluetooth.contains(x, y)) { outLog = "LS60 Bluetooth"; return g_haClient.callScript("remote_ls60_select_bluetooth"); }
   }
 
-  if (target == RemoteDeviceTarget::Wiim) {
-    if (kWiimVolDown.contains(x, y)) return "script.remote_volume_down";
-    if (kWiimMute.contains(x, y)) return "script.remote_mute";
-    if (kWiimVolUp.contains(x, y)) return "script.remote_volume_up";
-    if (kWiimHdmi.contains(x, y)) return "script.remote_wiim_select_hdmi";
-    if (kWiimPhono.contains(x, y)) return "script.remote_wiim_select_phono";
-    if (kWiimAux.contains(x, y)) return "script.remote_wiim_select_aux";
-    if (kWiimWifi.contains(x, y)) return "script.remote_wiim_select_wifi";
-    if (kWiimPrev.contains(x, y)) return "script.remote_previous";
-    if (kWiimPlay.contains(x, y)) return "script.remote_play_pause";
-    if (kWiimNext.contains(x, y)) return "script.remote_next";
-    return nullptr;
-  }
-
-  if (target == RemoteDeviceTarget::Tv) {
-    if (kTvPowerOn.contains(x, y)) return "script.remote_tv_power on";
-    if (kTvPowerToggle.contains(x, y)) return "script.remote_tv_power toggle";
-    if (kTvPowerOff.contains(x, y)) return "script.remote_tv_power off";
-    if (kTvSourceTelia.contains(x, y)) return "script.remote_tv_select_source Telia";
-    if (kTvSourcePs5.contains(x, y)) return "script.remote_tv_select_source PS5";
-    if (kTvSourceHdmi4.contains(x, y)) return "script.remote_tv_select_source HDMI4";
-    if (kTvSourceLive.contains(x, y)) return "script.remote_tv_select_source LiveTV";
-    return nullptr;
-  }
-
-  if (target == RemoteDeviceTarget::Ls60) {
-    if (kLs60Restore.contains(x, y)) return "script.remote_ls60_restore_unity_gain";
-    if (kLs60Coax.contains(x, y)) return "script.remote_ls60_select_coaxial";
-    if (kLs60Vol71.contains(x, y)) return "script.remote_ls60_set_volume 71";
-    if (kLs60Analog.contains(x, y)) return "script.remote_ls60_select_analog";
-    if (kLs60Optical.contains(x, y)) return "script.remote_ls60_select_optical";
-    if (kLs60Tv.contains(x, y)) return "script.remote_ls60_select_tv";
-    if (kLs60Bluetooth.contains(x, y)) return "script.remote_ls60_select_bluetooth";
-    return nullptr;
-  }
-
-  return nullptr;
+  outLog = "";
+  return false;
 }
 
 void handleDeviceControlTouch(const RemoteTouchEvent &event) {
@@ -528,8 +505,10 @@ void handleDeviceControlTouch(const RemoteTouchEvent &event) {
     return;
   }
 
-  const char *action = deviceActionForTap(g_currentDeviceTarget, event.end.screenX, event.end.screenY);
-  if (action == nullptr) {
+  String outLog;
+  bool ok = executeDeviceActionForTap(g_currentDeviceTarget, event.end.screenX, event.end.screenY, outLog);
+  
+  if (outLog.isEmpty()) {
     logPrintf(LogLevel::Info,
               "Device control tap outside action at screen=(%d,%d)",
               event.end.screenX,
@@ -537,11 +516,9 @@ void handleDeviceControlTouch(const RemoteTouchEvent &event) {
     return;
   }
 
-  g_deviceControlMessage = String("Would call ") + deviceTargetLogName(g_currentDeviceTarget) + "." + action + " (disabled)";
-  logPrintf(LogLevel::Info,
-            "Device action disabled: target=%s action=%s",
-            deviceTargetLogName(g_currentDeviceTarget),
-            action);
+  g_deviceControlMessage = outLog + (ok ? " OK" : " Failed");
+  logPrintf(LogLevel::Info, "Device action: %s", g_deviceControlMessage.c_str());
+  renderCurrentPage(); // Refresh to show the message status
 #else
   (void)event;
 #endif
@@ -559,16 +536,152 @@ void handleHomeTouch(const RemoteTouchEvent &event) {
   }
 
   const char *script = activityScriptForTap(event.end.screenX, event.end.screenY);
-  if (script == nullptr) {
-    logPrintf(LogLevel::Info,
-              "Home page tap outside action at screen=(%d,%d)",
-              event.end.screenX,
-              event.end.screenY);
+  if (script != nullptr) {
+    logPrintf(LogLevel::Info, "Executing script: %s", script);
+    g_homeMessage = String("Calling ") + script + "...";
+    renderCurrentPage(); // Show feedback immediately
+
+    if (g_haClient.callScript(script)) {
+      g_homeMessage = String("Called ") + script + " OK";
+    } else {
+      g_homeMessage = String("Failed to call ") + script;
+    }
+    renderCurrentPage();
     return;
   }
 
-  g_homeMessage = String("Would call ") + script + " (disabled)";
-  logPrintf(LogLevel::Info, "Home activity action disabled: would call %s", script);
+  // TODO: quick controls
+  logPrintf(LogLevel::Info,
+            "Home page tap outside action at screen=(%d,%d)",
+            event.end.screenX,
+            event.end.screenY);
+#else
+  (void)event;
+#endif
+}
+
+bool executeLightsActionForTap(int16_t x, int16_t y, String &outLog) {
+  if (kSceneNormal.contains(x, y)) { outLog = "Scene Normal"; return g_haClient.callScript("remote_living_room_lights", "{\"preset\":\"bright\"}"); }
+  if (kSceneWatchTV.contains(x, y)) { outLog = "Scene Watch TV"; return g_haClient.callScript("remote_living_room_lights", "{\"preset\":\"tv\"}"); }
+  if (kSceneRelax.contains(x, y)) { outLog = "Scene Relax"; return g_haClient.callScript("remote_living_room_lights", "{\"preset\":\"relax\"}"); }
+  
+  if (kZoneAllOn.contains(x, y)) { outLog = "All Lights On"; return g_haClient.callScript("remote_living_room_lights", "{\"preset\":\"bright\"}"); }
+  if (kZoneAllOff.contains(x, y)) { outLog = "All Lights Off"; return g_haClient.callScript("remote_living_room_lights", "{\"preset\":\"off\"}"); }
+  
+  if (kZoneHallwayOn.contains(x, y)) { outLog = "Hallway On"; return g_haClient.callEntityService("light", "turn_on", "light.hallway"); }
+  if (kZoneHallwayOff.contains(x, y)) { outLog = "Hallway Off"; return g_haClient.callEntityService("light", "turn_off", "light.hallway"); }
+  if (kZoneKitchenOn.contains(x, y)) { outLog = "Kitchen On"; return g_haClient.callEntityService("light", "turn_on", "light.kitchen"); }
+  if (kZoneKitchenOff.contains(x, y)) { outLog = "Kitchen Off"; return g_haClient.callEntityService("light", "turn_off", "light.kitchen"); }
+  if (kZoneCornerOn.contains(x, y)) { outLog = "Corner On"; return g_haClient.callEntityService("light", "turn_on", "light.corner"); }
+  if (kZoneCornerOff.contains(x, y)) { outLog = "Corner Off"; return g_haClient.callEntityService("light", "turn_off", "light.corner"); }
+  if (kZoneDiningOn.contains(x, y)) { outLog = "Dining On"; return g_haClient.callEntityService("light", "turn_on", "light.dining"); }
+  if (kZoneDiningOff.contains(x, y)) { outLog = "Dining Off"; return g_haClient.callEntityService("light", "turn_off", "light.dining"); }
+  if (kZoneTvOn.contains(x, y)) { outLog = "TV Zone On"; return g_haClient.callEntityService("light", "turn_on", "light.tv_zone"); }
+  if (kZoneTvOff.contains(x, y)) { outLog = "TV Zone Off"; return g_haClient.callEntityService("light", "turn_off", "light.tv_zone"); }
+  
+  outLog = "";
+  return false;
+}
+
+bool executeRoomActionForTap(int16_t x, int16_t y, String &outLog) {
+  if (kRoomFixLS60.contains(x, y)) { outLog = "Room Fix LS60"; return g_haClient.callScript("remote_ls60_restore_unity_gain"); }
+  if (kRoomRefresh.contains(x, y)) { outLog = "Room Refresh"; return g_haClient.callScript("remote_status_refresh"); }
+  outLog = "";
+  return false;
+}
+
+bool executeMoreActionForTap(int16_t x, int16_t y, String &outLog) {
+  if (kMoreAllOff.contains(x, y)) { outLog = "More All Off"; return g_haClient.callScript("activity_all_off"); }
+  if (kMoreRefresh.contains(x, y)) { outLog = "More Refresh"; return g_haClient.callScript("remote_status_refresh"); }
+  if (kMoreFixLS60.contains(x, y)) { outLog = "More Fix LS60"; return g_haClient.callScript("remote_ls60_restore_unity_gain"); }
+  if (kMoreSleep.contains(x, y)) {
+    outLog = "Sleep Remote"; 
+    logPrintf(LogLevel::Info, "Executing deep sleep command from More page");
+    g_powerManager.goToSleep();
+    return true;
+  }
+  outLog = "";
+  return false;
+}
+
+void handleLightsTouch(const RemoteTouchEvent &event) {
+#if !REMOTE_ENABLE_TOUCH_TEST
+  if (g_currentPage != UiPageId::Lights || event.gesture != RemoteTouchGesture::Tap) {
+    return;
+  }
+
+  UiPageId navPage;
+  if (pageForBottomNavTap(event.end.screenX, event.end.screenY, navPage)) {
+    return;
+  }
+
+  String outLog;
+  bool ok = executeLightsActionForTap(event.end.screenX, event.end.screenY, outLog);
+  if (!outLog.isEmpty()) {
+    g_uiMessage = outLog + (ok ? " OK" : " Failed");
+    logPrintf(LogLevel::Info, "Lights action: %s", g_uiMessage.c_str());
+    renderCurrentPage();
+    return;
+  }
+
+  logPrintf(LogLevel::Info, "Lights page tap at (%d, %d)", event.end.screenX, event.end.screenY);
+#else
+  (void)event;
+#endif
+}
+
+void handleRoomTouch(const RemoteTouchEvent &event) {
+#if !REMOTE_ENABLE_TOUCH_TEST
+  if (g_currentPage != UiPageId::Room || event.gesture != RemoteTouchGesture::Tap) {
+    return;
+  }
+
+  UiPageId navPage;
+  if (pageForBottomNavTap(event.end.screenX, event.end.screenY, navPage)) {
+    return;
+  }
+
+  String outLog;
+  bool ok = executeRoomActionForTap(event.end.screenX, event.end.screenY, outLog);
+  if (!outLog.isEmpty()) {
+    g_uiMessage = outLog + (ok ? " OK" : " Failed");
+    logPrintf(LogLevel::Info, "Room action: %s", g_uiMessage.c_str());
+    renderCurrentPage();
+    return;
+  }
+
+  logPrintf(LogLevel::Info, "Room page tap at (%d, %d)", event.end.screenX, event.end.screenY);
+#else
+  (void)event;
+#endif
+}
+
+void handleMoreTouch(const RemoteTouchEvent &event) {
+#if !REMOTE_ENABLE_TOUCH_TEST
+  if (g_currentPage != UiPageId::More || event.gesture != RemoteTouchGesture::Tap) {
+    return;
+  }
+
+  UiPageId navPage;
+  if (pageForBottomNavTap(event.end.screenX, event.end.screenY, navPage)) {
+    return;
+  }
+
+  if (kMoreSafe.contains(event.end.screenX, event.end.screenY)) {
+    switchPage(UiPageId::SafeControl);
+    return;
+  }
+
+  String outLog;
+  bool ok = executeMoreActionForTap(event.end.screenX, event.end.screenY, outLog);
+  if (!outLog.isEmpty()) {
+    g_uiMessage = outLog + (ok ? " OK" : " Failed");
+    logPrintf(LogLevel::Info, "More action: %s", g_uiMessage.c_str());
+    renderCurrentPage();
+    return;
+  }
+
+  logPrintf(LogLevel::Info, "More page tap at (%d, %d)", event.end.screenX, event.end.screenY);
 #else
   (void)event;
 #endif
@@ -679,6 +792,9 @@ void loopRemoteApp() {
     handleBottomNavTouch(event);
     handleDeviceControlTouch(event);
     handleHomeTouch(event);
+    handleLightsTouch(event);
+    handleRoomTouch(event);
+    handleMoreTouch(event);
     handleSafeControlTouch(event);
   }
   delay(10);

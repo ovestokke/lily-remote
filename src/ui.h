@@ -102,4 +102,52 @@ constexpr UiRect kLs60Optical{24, 506, 164, 92};
 constexpr UiRect kLs60Tv{188, 506, 164, 92};
 constexpr UiRect kLs60Bluetooth{352, 506, 164, 92};
 
+// Lights Panel
+constexpr UiRect kSceneNormal{24, 134, 156, 82};
+constexpr UiRect kSceneWatchTV{192, 134, 156, 82};
+constexpr UiRect kSceneRelax{360, 134, 156, 82};
+
+constexpr UiRect kZoneAll{24, 296, 492, 72};
+constexpr UiRect kZoneAllOn{364, 296, 76, 72};
+constexpr UiRect kZoneAllOff{440, 296, 76, 72};
+
+constexpr UiRect kZoneHallway{24, 378, 492, 62};
+constexpr UiRect kZoneHallwayOn{364, 378, 76, 62};
+constexpr UiRect kZoneHallwayOff{440, 378, 76, 62};
+
+constexpr UiRect kZoneKitchen{24, 450, 492, 62};
+constexpr UiRect kZoneKitchenOn{364, 450, 76, 62};
+constexpr UiRect kZoneKitchenOff{440, 450, 76, 62};
+
+constexpr UiRect kZoneCorner{24, 522, 492, 62};
+constexpr UiRect kZoneCornerOn{364, 522, 76, 62};
+constexpr UiRect kZoneCornerOff{440, 522, 76, 62};
+
+constexpr UiRect kZoneDining{24, 594, 492, 62};
+constexpr UiRect kZoneDiningOn{364, 594, 76, 62};
+constexpr UiRect kZoneDiningOff{440, 594, 76, 62};
+
+constexpr UiRect kZoneTv{24, 666, 492, 62};
+constexpr UiRect kZoneTvOn{364, 666, 76, 62};
+constexpr UiRect kZoneTvOff{440, 666, 76, 62};
+
+// Room Panel
+constexpr UiRect kStatusActivity{24, 134, 492, 68};
+constexpr UiRect kStatusTV{24, 212, 492, 68};
+constexpr UiRect kStatusWiiM{24, 290, 492, 68};
+constexpr UiRect kStatusLS60{24, 368, 492, 68};
+constexpr UiRect kStatusLights{24, 446, 492, 68};
+
+constexpr UiRect kRoomFixLS60{24, 530, 240, 82};
+constexpr UiRect kRoomRefresh{276, 530, 240, 82};
+
+// More Panel
+constexpr UiRect kMoreAllOff{24, 128, 492, 82};
+constexpr UiRect kMoreRefresh{24, 222, 240, 82};
+constexpr UiRect kMoreFixLS60{276, 222, 240, 82};
+constexpr UiRect kMoreWifi{24, 316, 240, 82};
+constexpr UiRect kMoreAbout{276, 316, 240, 82};
+constexpr UiRect kMoreSleep{24, 410, 240, 82};
+constexpr UiRect kMoreSafe{276, 410, 240, 82};
+
 const char *uiPageName(UiPageId page);

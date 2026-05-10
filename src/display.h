@@ -58,10 +58,34 @@ struct RemoteDeviceControlPage {
   String message;
 };
 
+struct RemoteLightsPage {
+  RemoteDisplayStatus status;
+  String activeScene;
+  String message;
+};
+
+struct RemoteRoomPage {
+  RemoteDisplayStatus status;
+  String activityState;
+  String tvState;
+  String wiimState;
+  String ls60State;
+  String lightsState;
+  String message;
+};
+
+struct RemoteMorePage {
+  RemoteDisplayStatus status;
+  String message;
+};
+
 bool initRemoteDisplay();
 void renderStatusPage(const RemoteDisplayStatus &status);
 void renderSafeControlPage(const RemoteSafeControlPage &page);
 void renderHomePage(const RemoteActivitiesPage &page);
 void renderDeviceControlPage(const RemoteDeviceControlPage &page);
+void renderLightsPage(const RemoteLightsPage &page);
+void renderRoomPage(const RemoteRoomPage &page);
+void renderMorePage(const RemoteMorePage &page);
 void renderShellPage(const RemoteShellPage &page, const RemoteDisplayStatus &status);
 void renderTouchTestPage();

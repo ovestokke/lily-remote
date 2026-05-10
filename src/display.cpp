@@ -766,6 +766,139 @@ void renderDeviceControlPage(const RemoteDeviceControlPage &page) {
                 static_cast<unsigned>(elapsed));
 }
 
+void drawSceneButton(const UiRect &rect, const String &label, bool active = false) {
+  g_epaper.drawRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
+  if (active) {
+    g_epaper.fillRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
+    setTextWhite();
+    // Approximate centering for FONT_16x16
+    drawText16(label, rect.x + (rect.w / 2) - (label.length() * 6), rect.y + (rect.h / 2) - 8);
+    setTextBlack();
+  } else {
+    drawText16(label, rect.x + (rect.w / 2) - (label.length() * 6), rect.y + (rect.h / 2) - 8);
+  }
+}
+
+void drawZoneRow(int32_t y, int32_t h, const String &name, const String &sub, const UiRect &onRect, const UiRect &offRect, bool allZone = false) {
+  g_epaper.drawRect(24, y, 492, h, BBEP_BLACK);
+  drawText16(name, 40, y + (h / 2) - (allZone ? 14 : 12));
+  drawText(sub, 40, y + (h / 2) + (allZone ? 6 : 8));
+  
+  g_epaper.drawLine(onRect.x, onRect.y, onRect.x, onRect.y + onRect.h, BBEP_BLACK);
+  // ON button (inverted)
+  g_epaper.fillRect(onRect.x, onRect.y, onRect.w, onRect.h, BBEP_BLACK);
+  setTextWhite();
+  drawText16("ON", onRect.x + (onRect.w / 2) - 12, onRect.y + (onRect.h / 2) - 8);
+  setTextBlack();
+  
+  g_epaper.drawLine(offRect.x, offRect.y, offRect.x, offRect.y + offRect.h, BBEP_BLACK);
+  drawText16("OFF", offRect.x + (offRect.w / 2) - 18, offRect.y + (offRect.h / 2) - 8);
+}
+
+void renderLightsPage(const RemoteLightsPage &page) {
+  if (!g_displayReady && !initRemoteDisplay()) return;
+  Serial.println("Rendering lights page...");
+  g_epaper.setMode(BB_MODE_1BPP);
+  g_epaper.fillScreen(BBEP_WHITE);
+  g_epaper.setFont(FONT_12x16);
+  setTextBlack();
+  g_epaper.setTextWrap(false);
+  
+  g_epaper.drawRect(24, 24, 492, 912, BBEP_BLACK);
+  drawTopBar("Lights", page.status.haApiOk);
+
+  drawSceneButton(kSceneNormal, "Normal", page.activeScene == "bright");
+  drawSceneButton(kSceneWatchTV, "Watch TV", page.activeScene == "tv");
+  drawSceneButton(kSceneRelax, "Relax", page.activeScene == "relax");
+
+  g_epaper.fillRect(24, 232, 492, 54, BBEP_BLACK);
+  setTextWhite();
+  drawText16("Zones", 40, 250);
+  drawText8("on / off", 516 - 16 - (8 * 8), 254);
+  setTextBlack();
+
+  drawZoneRow(kZoneAll.y, kZoneAll.h, "All lights", "whole home", kZoneAllOn, kZoneAllOff, true);
+  drawZoneRow(kZoneHallway.y, kZoneHallway.h, "Hallway", "hallway", kZoneHallwayOn, kZoneHallwayOff);
+  drawZoneRow(kZoneKitchen.y, kZoneKitchen.h, "Kitchen", "kitchen", kZoneKitchenOn, kZoneKitchenOff);
+  drawZoneRow(kZoneCorner.y, kZoneCorner.h, "Corner lounge", "living room", kZoneCornerOn, kZoneCornerOff);
+  drawZoneRow(kZoneDining.y, kZoneDining.h, "Dining table", "living room", kZoneDiningOn, kZoneDiningOff);
+  drawZoneRow(kZoneTv.y, kZoneTv.h, "TV zone", "living room", kZoneTvOn, kZoneTvOff);
+
+  drawFooterNav(UiPageId::Lights, "");
+  g_epaper.fullUpdate(CLEAR_SLOW, false);
+}
+
+void drawStatusRow(const UiRect &rect, const String &label, const String &value, const String &sub) {
+  g_epaper.drawRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
+  g_epaper.drawLine(rect.x + 104, rect.y, rect.x + 104, rect.y + rect.h, BBEP_BLACK);
+  drawText8(label, rect.x + 14, rect.y + (rect.h / 2) - 4); // Uppercase label
+  drawText16(value, rect.x + 120, rect.y + 16);
+  drawText(sub, rect.x + 120, rect.y + 42);
+}
+
+void drawActionRowButton(const UiRect &rect, const String &label, const uint8_t *iconBmp, bool inverted = false) {
+  g_epaper.drawRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
+  if (inverted) {
+    g_epaper.fillRect(rect.x, rect.y, rect.w, rect.h, BBEP_BLACK);
+    setTextWhite();
+    drawMdiIcon(iconBmp, rect.x + 14, rect.y + (rect.h / 2) - 15, BBEP_WHITE);
+    drawText16(label, rect.x + 54, rect.y + (rect.h / 2) - 8);
+    setTextBlack();
+  } else {
+    drawMdiIcon(iconBmp, rect.x + 14, rect.y + (rect.h / 2) - 15, BBEP_BLACK);
+    drawText16(label, rect.x + 54, rect.y + (rect.h / 2) - 8);
+  }
+}
+
+void renderRoomPage(const RemoteRoomPage &page) {
+  if (!g_displayReady && !initRemoteDisplay()) return;
+  Serial.println("Rendering room page...");
+  g_epaper.setMode(BB_MODE_1BPP);
+  g_epaper.fillScreen(BBEP_WHITE);
+  g_epaper.setFont(FONT_12x16);
+  setTextBlack();
+  g_epaper.setTextWrap(false);
+  
+  g_epaper.drawRect(24, 24, 492, 912, BBEP_BLACK);
+  drawTopBar("Room", page.status.haApiOk);
+
+  drawStatusRow(kStatusActivity, "ACTIVITY", page.activityState, "current mode");
+  drawStatusRow(kStatusTV, "TV", page.tvState, "Sagemcom Set-Top Box");
+  drawStatusRow(kStatusWiiM, "WIIM", page.wiimState, "normal preamp");
+  drawStatusRow(kStatusLS60, "LS60", page.ls60State, "unity gain ready");
+  drawStatusRow(kStatusLights, "LIGHTS", page.lightsState, "dim living room");
+
+  drawActionRowButton(kRoomFixLS60, "Fix LS60", kMdiSpeaker23Bmp, true);
+  drawActionRowButton(kRoomRefresh, "Refresh", kMdiBack36Bmp);
+
+  drawFooterNav(UiPageId::Room, "");
+  g_epaper.fullUpdate(CLEAR_SLOW, false);
+}
+
+void renderMorePage(const RemoteMorePage &page) {
+  if (!g_displayReady && !initRemoteDisplay()) return;
+  Serial.println("Rendering more page...");
+  g_epaper.setMode(BB_MODE_1BPP);
+  g_epaper.fillScreen(BBEP_WHITE);
+  g_epaper.setFont(FONT_12x16);
+  setTextBlack();
+  g_epaper.setTextWrap(false);
+  
+  g_epaper.drawRect(24, 24, 492, 912, BBEP_BLACK);
+  drawTopBar("More", page.status.haApiOk);
+
+  drawActionRowButton(kMoreAllOff, "All Off", kMdiPower18Bmp, true);
+  drawActionRowButton(kMoreRefresh, "Refresh Status", kMdiBack36Bmp);
+  drawActionRowButton(kMoreFixLS60, "Fix LS60", kMdiSpeaker23Bmp);
+  drawActionRowButton(kMoreWifi, "WiFi / HA", kMdiWifi36Bmp);
+  drawActionRowButton(kMoreAbout, "About Remote", kMdiDots22Bmp);
+  drawActionRowButton(kMoreSleep, "Sleep Remote", kMdiPower18Bmp);
+  drawActionRowButton(kMoreSafe, "Safe Test", kMdiPlayPause30Bmp);
+
+  drawFooterNav(UiPageId::More, "");
+  g_epaper.fullUpdate(CLEAR_SLOW, false);
+}
+
 void renderShellPage(const RemoteShellPage &page, const RemoteDisplayStatus &status) {
   if (!g_displayReady && !initRemoteDisplay()) {
     return;

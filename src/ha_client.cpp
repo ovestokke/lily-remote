@@ -101,6 +101,18 @@ bool HaClient::callEntityServiceWithStringField(const char *domain,
   return callService(domain, service, body);
 }
 
+bool HaClient::callScript(const char *scriptName, const String &variables) {
+  String body = "{\"entity_id\":\"script.";
+  body += scriptName;
+  body += "\"";
+  if (variables.length() > 0 && variables != "{}") {
+    body += ",\"variables\":";
+    body += variables;
+  }
+  body += "}";
+  return postJson("/api/services/script/turn_on", body);
+}
+
 bool HaClient::postJson(const String &path, const String &body) {
   HTTPClient http;
   const String url = makeUrl(path);

@@ -17,6 +17,7 @@ public:
                                         const char *entityId,
                                         const char *fieldName,
                                         const String &fieldValue);
+  bool callScript(const char *scriptName, const String &variables = "{}");
 
 private:
   String makeUrl(const String &path) const;
