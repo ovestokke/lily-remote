@@ -28,4 +28,5 @@ struct RemoteTouchEvent {
 
 bool initRemoteTouch();
 bool isRemoteTouchReady();
+uint32_t getRemoteTouchLastActivityMs();
 bool pollRemoteTouch(RemoteTouchEvent *event = nullptr);

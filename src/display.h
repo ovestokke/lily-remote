@@ -18,6 +18,9 @@ struct RemoteDisplayStatus {
   String entityId;
   String entityState;
 
+  bool batteryKnown = false;
+  int16_t batteryPercent = -1;
+
   bool writeTestEnabled = false;
 };
 

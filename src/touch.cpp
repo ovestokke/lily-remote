@@ -1,5 +1,7 @@
 #include "touch.h"
 
+#include "i2c_bus.h"
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <TouchDrvGT911.hpp>
@@ -16,8 +18,6 @@
 
 namespace {
 // T5 E-Paper S3 Pro / Pro Lite touch bus from vendor examples.
-constexpr int kTouchSda = 39;
-constexpr int kTouchScl = 40;
 constexpr int kTouchIrq = 3;
 constexpr int kTouchRst = 9;
 constexpr uint8_t kGt911Address = GT911_SLAVE_ADDRESS_L;
@@ -39,7 +39,7 @@ RemoteTouchPoint g_lastPoint;
 uint32_t g_lastPrintMs = 0;
 
 void scanTouchBus() {
-  Serial.printf("Scanning I2C bus SDA=%d SCL=%d...\n", kTouchSda, kTouchScl);
+  Serial.printf("Scanning I2C bus SDA=%d SCL=%d...\n", kRemoteI2cSda, kRemoteI2cScl);
   uint8_t found = 0;
   for (uint8_t address = 1; address < 127; ++address) {
     Wire.beginTransmission(address);
@@ -137,13 +137,13 @@ bool initRemoteTouch() {
   }
 
   Serial.println("Initializing GT911 touch...");
-  Wire.begin(kTouchSda, kTouchScl);
+  initRemoteI2cBus();
 #if REMOTE_ENABLE_I2C_SCAN
   scanTouchBus();
 #endif
 
   g_touch.setPins(kTouchRst, kTouchIrq);
-  if (!g_touch.begin(Wire, kGt911Address, kTouchSda, kTouchScl)) {
+  if (!g_touch.begin(Wire, kGt911Address, kRemoteI2cSda, kRemoteI2cScl)) {
     Serial.printf("GT911 init failed at 0x%02X\n", kGt911Address);
     return false;
   }
@@ -165,6 +165,10 @@ bool initRemoteTouch() {
 
 bool isRemoteTouchReady() {
   return g_touchReady;
+}
+
+uint32_t getRemoteTouchLastActivityMs() {
+  return g_lastTouchMs;
 }
 
 bool pollRemoteTouch(RemoteTouchEvent *event) {

@@ -244,14 +244,38 @@ const char *deviceTargetName(RemoteDeviceTarget target) {
   return "Unknown";
 }
 
-void drawTopBar(const char *title, bool online) {
+void drawBatteryIndicator(const RemoteDisplayStatus &status) {
+  constexpr int32_t x = 226;
+  constexpr int32_t y = 43;
+  constexpr int32_t w = 34;
+  constexpr int32_t h = 18;
+  constexpr int32_t terminalW = 4;
+
+  g_epaper.drawRect(x, y, w, h, BBEP_BLACK);
+  g_epaper.fillRect(x + w, y + 5, terminalW, 8, BBEP_BLACK);
+
+  if (status.batteryKnown) {
+    const int16_t percent = constrain(status.batteryPercent, 0, 100);
+    const int32_t fillW = ((w - 4) * percent + 50) / 100;
+    if (fillW > 0) {
+      g_epaper.fillRect(x + 2, y + 2, fillW, h - 4, BBEP_BLACK);
+    }
+    drawText8(String(percent) + "%", x + 46, y + 5);
+  } else {
+    drawText8("--%", x + 46, y + 5);
+  }
+}
+
+void drawTopBar(const char *title, const RemoteDisplayStatus &status) {
   // Page title: Twice the size of standard text
   // FastEPD FONT_16x16 is 16px high. Standard drawText (FONT_12x16) is 16px high too but narrower.
   // We'll use drawText16 which is the largest built-in font.
   drawText16(title, 24, 42);
 
+  drawBatteryIndicator(status);
+
   // Online pill: right-aligned
-  drawLabelPill(kOnlinePillRect.x, kOnlinePillRect.y, kOnlinePillRect.w, kOnlinePillRect.h, online ? "ONLINE" : "OFFLINE");
+  drawLabelPill(kOnlinePillRect.x, kOnlinePillRect.y, kOnlinePillRect.w, kOnlinePillRect.h, status.haApiOk ? "ONLINE" : "OFFLINE");
 
   // Off button: next to pill, ink fill
   g_epaper.drawRect(kMediaOffButton.x, kMediaOffButton.y, kMediaOffButton.w, kMediaOffButton.h, BBEP_BLACK);
@@ -632,7 +656,7 @@ void renderSafeControlPage(const RemoteSafeControlPage &page) {
 
   g_epaper.drawRect(margin, margin, w - 2 * margin, h - 2 * margin, BBEP_BLACK);
 
-  drawTopBar("Safe Control", page.status.haApiOk);
+  drawTopBar("Safe Control", page.status);
 
   drawStatusBox(40, 156, 130, 72, "WiFi", page.status.wifiConnected);
   drawStatusBox(204, 156, 130, 72, "HA", page.status.haApiOk);
@@ -686,7 +710,7 @@ void renderHomePage(const RemoteActivitiesPage &page) {
   constexpr int32_t margin = 24;
   g_epaper.drawRect(margin, margin, kUiScreenWidth - 2 * margin, kUiScreenHeight - 2 * margin, BBEP_BLACK);
 
-  drawTopBar("Home", page.status.haApiOk);
+  drawTopBar("Home", page.status);
 
   drawActivityButton(kActivityWatchTvButton, "Watch TV", kMdiTv50Bmp, page.currentActivity == "Watch TV");
   drawActivityButton(kActivityPs5Button, "Play PS5", kMdiPlaystation50Bmp, page.currentActivity == "Play PS5");
@@ -737,7 +761,7 @@ void renderDeviceControlPage(const RemoteDeviceControlPage &page) {
   constexpr int32_t margin = 24;
   g_epaper.drawRect(margin, margin, kUiScreenWidth - 2 * margin, kUiScreenHeight - 2 * margin, BBEP_BLACK);
 
-  drawTopBar("Remote", page.status.haApiOk);
+  drawTopBar("Remote", page.status);
   drawDeviceTabs(page.target);
 
   switch (page.target) {
@@ -805,7 +829,7 @@ void renderLightsPage(const RemoteLightsPage &page) {
   g_epaper.setTextWrap(false);
   
   g_epaper.drawRect(24, 24, 492, 912, BBEP_BLACK);
-  drawTopBar("Lights", page.status.haApiOk);
+  drawTopBar("Lights", page.status);
 
   drawSceneButton(kSceneNormal, "Normal", page.activeScene == "bright");
   drawSceneButton(kSceneWatchTV, "Watch TV", page.activeScene == "tv");
@@ -860,7 +884,7 @@ void renderRoomPage(const RemoteRoomPage &page) {
   g_epaper.setTextWrap(false);
   
   g_epaper.drawRect(24, 24, 492, 912, BBEP_BLACK);
-  drawTopBar("Room", page.status.haApiOk);
+  drawTopBar("Room", page.status);
 
   drawStatusRow(kStatusActivity, "ACTIVITY", page.activityState, "current mode");
   drawStatusRow(kStatusTV, "TV", page.tvState, "Sagemcom Set-Top Box");
@@ -885,7 +909,7 @@ void renderMorePage(const RemoteMorePage &page) {
   g_epaper.setTextWrap(false);
   
   g_epaper.drawRect(24, 24, 492, 912, BBEP_BLACK);
-  drawTopBar("More", page.status.haApiOk);
+  drawTopBar("More", page.status);
 
   drawActionRowButton(kMoreAllOff, "All Off", kMdiPower18Bmp, true);
   drawActionRowButton(kMoreRefresh, "Refresh Status", kMdiBack36Bmp);
@@ -934,7 +958,7 @@ void renderShellPage(const RemoteShellPage &page, const RemoteDisplayStatus &sta
 
   constexpr int32_t margin = 20;
   g_epaper.drawRect(margin, margin, kUiScreenWidth - 2 * margin, kUiScreenHeight - 2 * margin, BBEP_BLACK);
-  drawTopBar(page.title, status.haApiOk);
+  drawTopBar(page.title, status);
 
   drawStatusBox(40, 162, 130, 72, "WiFi", status.wifiConnected);
   drawStatusBox(204, 162, 130, 72, "HA", status.haApiOk);
@@ -976,7 +1000,7 @@ void renderStatusPage(const RemoteDisplayStatus &status) {
   g_epaper.setTextColor(BBEP_BLACK, BBEP_TRANSPARENT);
 
   g_epaper.drawRect(margin, margin, w - 2 * margin, h - 2 * margin, BBEP_BLACK);
-  drawTopBar("Status", status.haApiOk);
+  drawTopBar("Status", status);
 
   drawStatusBox(40, 144, 130, 72, "Config", status.configOk);
   drawStatusBox(204, 144, 130, 72, "WiFi", status.wifiConnected);

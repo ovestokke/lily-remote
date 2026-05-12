@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+#include "battery.h"
 #include "display.h"
 #include "ha_client.h"
 #include "log.h"
@@ -21,6 +22,7 @@ namespace {
 constexpr uint32_t kSerialBaud = 115200;
 constexpr uint32_t kWifiTimeoutMs = 20000;
 constexpr uint32_t kServiceCallCooldownMs = 1200;
+constexpr uint32_t kIdleSleepTimeoutMs = 5UL * 60UL * 1000UL;
 
 #ifndef REMOTE_ENABLE_HA_WRITE_TEST
 #define REMOTE_ENABLE_HA_WRITE_TEST 0
@@ -56,7 +58,9 @@ String g_homeMessage = "Tap to see what would run.";
 String g_deviceControlMessage = "Tap to see what would run.";
 RemoteDeviceTarget g_currentDeviceTarget = RemoteDeviceTarget::Telia;
 bool g_lastActionOk = true;
+bool g_sleepRequested = false;
 uint32_t g_lastServiceCallMs = 0;
+uint32_t g_lastActivityMs = 0;
 
 bool isPlaceholder(const char *value) {
   if (value == nullptr || value[0] == '\0') {
@@ -199,7 +203,59 @@ String currentActivityFromSummary() {
   return activity;
 }
 
+bool isAfterMillis(uint32_t value, uint32_t reference) {
+  return static_cast<int32_t>(value - reference) > 0;
+}
+
+void markActivity(uint32_t timestampMs = millis()) {
+  g_lastActivityMs = timestampMs;
+}
+
+void syncTouchActivity() {
+  const uint32_t touchActivityMs = getRemoteTouchLastActivityMs();
+  if (touchActivityMs != 0 && isAfterMillis(touchActivityMs, g_lastActivityMs)) {
+    g_lastActivityMs = touchActivityMs;
+  }
+}
+
+void updateBatteryForRender() {
+  RemoteBatteryReading reading;
+  if (readRemoteBattery(reading)) {
+    g_displayStatus.batteryKnown = reading.available;
+    g_displayStatus.batteryPercent = reading.percent;
+    logPrintf(LogLevel::Info, "Battery: %d%%", g_displayStatus.batteryPercent);
+  } else {
+    g_displayStatus.batteryKnown = false;
+    g_displayStatus.batteryPercent = -1;
+    logInfo("Battery: unavailable");
+  }
+}
+
+void maybeEnterIdleSleep() {
+  if (g_sleepRequested) {
+    return;
+  }
+
+  syncTouchActivity();
+  const uint32_t now = millis();
+  if (now - g_lastActivityMs < kIdleSleepTimeoutMs) {
+    return;
+  }
+
+  g_sleepRequested = true;
+  logPrintf(LogLevel::Info,
+            "Idle for %u ms; entering sleep",
+            static_cast<unsigned>(now - g_lastActivityMs));
+  g_powerManager.goToSleep();
+}
+
+void renderStatusUi() {
+  updateBatteryForRender();
+  renderStatusPage(g_displayStatus);
+}
+
 void renderSafeControlUi() {
+  updateBatteryForRender();
   RemoteSafeControlPage page;
   page.status = g_displayStatus;
   page.helperEntityId = HA_WRITE_TEST_ENTITY_ID;
@@ -210,6 +266,7 @@ void renderSafeControlUi() {
 }
 
 void renderHomeUi() {
+  updateBatteryForRender();
   RemoteActivitiesPage page;
   page.status = g_displayStatus;
   page.currentActivity = currentActivityFromSummary();
@@ -219,6 +276,7 @@ void renderHomeUi() {
 }
 
 void renderDeviceControlUi() {
+  updateBatteryForRender();
   RemoteDeviceControlPage page;
   page.status = g_displayStatus;
   page.target = g_currentDeviceTarget;
@@ -227,6 +285,7 @@ void renderDeviceControlUi() {
 }
 
 void renderLightsUi() {
+  updateBatteryForRender();
   RemoteLightsPage page;
   page.status = g_displayStatus;
   page.activeScene = "tv"; // Dummy for now
@@ -235,6 +294,7 @@ void renderLightsUi() {
 }
 
 void renderRoomUi() {
+  updateBatteryForRender();
   RemoteRoomPage page;
   page.status = g_displayStatus;
   page.activityState = "Watch TV";
@@ -247,6 +307,7 @@ void renderRoomUi() {
 }
 
 void renderMoreUi() {
+  updateBatteryForRender();
   RemoteMorePage page;
   page.status = g_displayStatus;
   page.message = g_uiMessage;
@@ -259,7 +320,7 @@ void renderCurrentPage() {
 #if REMOTE_ENABLE_SAFE_CONTROL_PAGE
     renderSafeControlUi();
 #else
-    renderStatusPage(g_displayStatus);
+    renderStatusUi();
 #endif
     break;
   case UiPageId::Home:
@@ -278,7 +339,7 @@ void renderCurrentPage() {
     renderMoreUi();
     break;
   default:
-    renderStatusPage(g_displayStatus);
+    renderStatusUi();
     break;
   }
 }
@@ -754,12 +815,14 @@ void setupRemoteApp() {
   g_displayStatus.entityId = HA_TEST_ENTITY_ID;
   g_displayStatus.writeTestEnabled = REMOTE_ENABLE_HA_WRITE_TEST;
   g_displayStatus.configOk = validateConfig();
+  markActivity();
 
   initRemoteDisplay();
 
   if (!g_displayStatus.configOk) {
     logInfo("Create include/config.h from include/config.example.h, then rebuild.");
-    renderStatusPage(g_displayStatus);
+    renderStatusUi();
+    markActivity();
     return;
   }
 
@@ -772,7 +835,7 @@ void setupRemoteApp() {
   if (initRemoteTouch()) {
     renderTouchTestPage();
   } else {
-    renderStatusPage(g_displayStatus);
+    renderStatusUi();
   }
 #else
 #if REMOTE_ENABLE_SAFE_CONTROL_PAGE
@@ -782,12 +845,14 @@ void setupRemoteApp() {
   initRemoteTouch();
 #endif
 
+  markActivity();
   g_powerManager.maybeSleepAfterBoot(REMOTE_SLEEP_AFTER_BOOT);
 }
 
 void loopRemoteApp() {
   RemoteTouchEvent event;
   if (pollRemoteTouch(&event)) {
+    markActivity();
     handlePageSwipe(event);
     handleBottomNavTouch(event);
     handleDeviceControlTouch(event);
@@ -797,5 +862,7 @@ void loopRemoteApp() {
     handleMoreTouch(event);
     handleSafeControlTouch(event);
   }
+
+  maybeEnterIdleSleep();
   delay(10);
 }
