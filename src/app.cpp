@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_sleep.h>
+#include <esp_system.h>
 
 #include "battery.h"
 #include "display.h"
@@ -47,6 +49,44 @@ constexpr uint32_t kIdleSleepTimeoutMs = 5UL * 60UL * 1000UL;
 #ifndef REMOTE_SLEEP_AFTER_BOOT
 #define REMOTE_SLEEP_AFTER_BOOT 0
 #endif
+
+#ifndef REMOTE_ENABLE_POWER_TELEMETRY
+#define REMOTE_ENABLE_POWER_TELEMETRY 1
+#endif
+
+#ifndef HA_POWER_EVENT_ENTITY_ID
+#define HA_POWER_EVENT_ENTITY_ID "input_text.lily_remote_power_event"
+#endif
+
+#ifndef HA_POWER_LOG_ENTITY_ID
+#define HA_POWER_LOG_ENTITY_ID "input_text.lily_remote_power_log"
+#endif
+
+#ifndef HA_POWER_VOLTAGE_ENTITY_ID
+#define HA_POWER_VOLTAGE_ENTITY_ID "input_number.lily_remote_battery_voltage_mv"
+#endif
+
+#ifndef HA_POWER_SOC_ENTITY_ID
+#define HA_POWER_SOC_ENTITY_ID "input_number.lily_remote_raw_soc"
+#endif
+
+#ifndef HA_POWER_WAKE_COUNT_ENTITY_ID
+#define HA_POWER_WAKE_COUNT_ENTITY_ID "input_number.lily_remote_wake_count"
+#endif
+
+struct PowerTelemetryRtcState {
+  uint32_t magic = 0;
+  uint32_t eventSeq = 0;
+  uint32_t wakeCount = 0;
+  uint16_t lastWakeVoltageMv = 0;
+  uint16_t lastSleepVoltageMv = 0;
+  int16_t lastRawSoc = -1;
+  uint32_t lastAwakeMs = 0;
+};
+
+constexpr uint32_t kPowerTelemetryMagic = 0x4C525057; // "LRPW"
+RTC_DATA_ATTR PowerTelemetryRtcState g_powerRtc;
+String g_pendingWakeTelemetry;
 
 HaClient g_haClient(HA_BASE_URL, HA_TOKEN);
 PowerManager g_powerManager;
@@ -218,16 +258,305 @@ void syncTouchActivity() {
   }
 }
 
-void updateBatteryForRender() {
+void initPowerTelemetryRtc() {
+  if (g_powerRtc.magic == kPowerTelemetryMagic) {
+    return;
+  }
+
+  g_powerRtc = PowerTelemetryRtcState{};
+  g_powerRtc.magic = kPowerTelemetryMagic;
+}
+
+const char *wakeCauseName(esp_sleep_wakeup_cause_t cause) {
+  switch (cause) {
+  case ESP_SLEEP_WAKEUP_EXT0:
+    return "ext0";
+  case ESP_SLEEP_WAKEUP_EXT1:
+    return "ext1";
+  case ESP_SLEEP_WAKEUP_TIMER:
+    return "timer";
+  case ESP_SLEEP_WAKEUP_TOUCHPAD:
+    return "touchpad";
+  case ESP_SLEEP_WAKEUP_ULP:
+    return "ulp";
+  case ESP_SLEEP_WAKEUP_GPIO:
+    return "gpio";
+  case ESP_SLEEP_WAKEUP_UART:
+    return "uart";
+  case ESP_SLEEP_WAKEUP_UNDEFINED:
+  default:
+    return "cold";
+  }
+}
+
+String trimTelemetryLine(String line) {
+  constexpr size_t kMaxInputTextLength = 255;
+  if (line.length() > kMaxInputTextLength) {
+    line.remove(kMaxInputTextLength);
+  }
+  return line;
+}
+
+bool writeInputText(const char *entityId, const String &value) {
+  return g_haClient.callEntityServiceWithStringField("input_text", "set_value", entityId, "value", trimTelemetryLine(value));
+}
+
+bool writeInputNumber(const char *entityId, int32_t value) {
+  String body = String("{\"entity_id\":\"") + entityId + "\",\"value\":" + value + "}";
+  return g_haClient.callService("input_number", "set_value", body);
+}
+
+bool sendPowerTelemetryToHa(const String &line, const RemoteBatteryReading &reading) {
+#if REMOTE_ENABLE_POWER_TELEMETRY
+  if (!g_displayStatus.wifiConnected || !g_displayStatus.haApiOk || line.length() == 0) {
+    return false;
+  }
+
+  bool ok = writeInputText(HA_POWER_EVENT_ENTITY_ID, line);
+
+  String oldLog;
+  String newLog = line;
+  if (g_haClient.getEntityState(HA_POWER_LOG_ENTITY_ID, oldLog) && oldLog.length() > 0 && oldLog != "unknown") {
+    newLog += " | ";
+    newLog += oldLog;
+  }
+  ok = writeInputText(HA_POWER_LOG_ENTITY_ID, newLog) && ok;
+
+  if (reading.voltageKnown) {
+    ok = writeInputNumber(HA_POWER_VOLTAGE_ENTITY_ID, reading.voltageMv) && ok;
+  }
+  if (reading.available) {
+    ok = writeInputNumber(HA_POWER_SOC_ENTITY_ID, reading.percent) && ok;
+  }
+  ok = writeInputNumber(HA_POWER_WAKE_COUNT_ENTITY_ID, static_cast<int32_t>(g_powerRtc.wakeCount)) && ok;
+
+  logPrintf(ok ? LogLevel::Info : LogLevel::Warn,
+            "Power telemetry HA upload %s: %s",
+            ok ? "ok" : "failed",
+            line.c_str());
+  return ok;
+#else
+  (void)line;
+  (void)reading;
+  return false;
+#endif
+}
+
+int16_t estimateBatteryPercentFromVoltage(uint16_t voltageMv) {
+  struct Point {
+    uint16_t mv;
+    int16_t percent;
+  };
+
+  // Conservative resting-voltage approximation for a single-cell Li-ion pack.
+  // This is only used when the BQ27220 CEDV SoC is visibly untrustworthy.
+  static constexpr Point kCurve[] = {
+      {3300, 0},
+      {3600, 10},
+      {3700, 20},
+      {3750, 30},
+      {3800, 40},
+      {3850, 50},
+      {3920, 60},
+      {3980, 70},
+      {4050, 80},
+      {4110, 90},
+      {4200, 100},
+  };
+
+  if (voltageMv <= kCurve[0].mv) {
+    return kCurve[0].percent;
+  }
+  for (size_t i = 1; i < sizeof(kCurve) / sizeof(kCurve[0]); ++i) {
+    if (voltageMv <= kCurve[i].mv) {
+      const Point low = kCurve[i - 1];
+      const Point high = kCurve[i];
+      const uint16_t spanMv = high.mv - low.mv;
+      const int16_t spanPercent = high.percent - low.percent;
+      return low.percent + static_cast<int32_t>(voltageMv - low.mv) * spanPercent / spanMv;
+    }
+  }
+  return 100;
+}
+
+void updateBatteryDisplayStatus(const RemoteBatteryReading &reading) {
+  g_displayStatus.batteryKnown = reading.available;
+  g_displayStatus.batteryPercent = reading.available ? reading.percent : -1;
+  g_displayStatus.batteryDisplayOverride = false;
+  g_displayStatus.batteryDisplayPercent = reading.available ? reading.percent : -1;
+  g_displayStatus.batteryDisplayLabel = "";
+  g_displayStatus.chargerKnown = reading.chargerAvailable;
+  g_displayStatus.externalPower = reading.externalPower;
+  g_displayStatus.batteryCharging = reading.chargeStatus == RemoteChargeStatus::PreCharge ||
+                                    reading.chargeStatus == RemoteChargeStatus::FastCharging;
+  g_displayStatus.batteryChargeDone = reading.chargeStatus == RemoteChargeStatus::ChargeDone;
+
+  const bool chargerPowerFaultClear = !reading.chargerFaultKnown || (reading.rawChargerFault & 0x7F) == 0;
+  if (reading.chargerAvailable && reading.externalPower && chargerPowerFaultClear &&
+      reading.chargeStatus == RemoteChargeStatus::ChargeDone) {
+    g_displayStatus.batteryDisplayOverride = true;
+    g_displayStatus.batteryDisplayPercent = 100;
+    g_displayStatus.batteryDisplayLabel = "100%";
+    return;
+  }
+
+  if (!reading.voltageKnown || reading.externalPower) {
+    return;
+  }
+
+  const int16_t voltageEstimate = estimateBatteryPercentFromVoltage(reading.voltageMv);
+  if (!reading.available) {
+    g_displayStatus.batteryDisplayOverride = true;
+    g_displayStatus.batteryDisplayPercent = voltageEstimate;
+    g_displayStatus.batteryDisplayLabel = "~" + String(voltageEstimate) + "%";
+    return;
+  }
+
+  const int16_t gaugePercent = reading.percent;
+  const int16_t delta = voltageEstimate - gaugePercent;
+  const bool gaugeImplausiblyLow = gaugePercent <= 5 && voltageEstimate >= 20;
+  if (gaugeImplausiblyLow || abs(delta) >= 30) {
+    g_displayStatus.batteryDisplayOverride = true;
+    g_displayStatus.batteryDisplayPercent = voltageEstimate;
+    g_displayStatus.batteryDisplayLabel = "~" + String(voltageEstimate) + "%";
+  }
+}
+
+String buildPowerTelemetryLine(const char *eventName,
+                               const RemoteBatteryReading &reading,
+                               uint32_t awakeMs,
+                               bool displayOverride,
+                               int16_t displayPercent) {
+  String line = String("seq=") + g_powerRtc.eventSeq +
+                " ev=" + eventName +
+                " wake=" + g_powerRtc.wakeCount +
+                " cause=" + wakeCauseName(esp_sleep_get_wakeup_cause()) +
+                " rst=" + static_cast<int>(esp_reset_reason());
+
+  if (reading.voltageKnown) {
+    line += String(" mv=") + reading.voltageMv;
+  }
+  if (reading.available) {
+    line += String(" soc=") + reading.percent;
+  }
+  if (displayOverride && displayPercent >= 0) {
+    line += String(" disp=") + displayPercent;
+  }
+  if (reading.remainingCapacityKnown && reading.fullChargeCapacityKnown) {
+    line += String(" rm=") + reading.remainingCapacityMah + "/" + reading.fullChargeCapacityMah;
+  }
+  if (reading.averageCurrentKnown) {
+    line += String(" avg=") + reading.averageCurrentMa;
+  }
+  if (reading.chargerAvailable) {
+    line += String(" chg=") + chargeStatusName(reading.chargeStatus);
+    line += String(" pwr=") + (reading.externalPower ? 1 : 0);
+  }
+  if (reading.chargerFaultKnown) {
+    line += String(" cf=0x") + String(reading.rawChargerFault, HEX);
+  }
+  if (awakeMs > 0) {
+    line += String(" awake=") + awakeMs;
+  }
+  if (g_powerRtc.lastSleepVoltageMv > 0) {
+    line += String(" prev_sleep_mv=") + g_powerRtc.lastSleepVoltageMv;
+  }
+
+  return trimTelemetryLine(line);
+}
+
+String recordPowerTelemetryEvent(const char *eventName, uint32_t awakeMs = 0, bool uploadToHa = false) {
+  configureRemoteChargerForRemoteUse();
+
   RemoteBatteryReading reading;
-  if (readRemoteBattery(reading)) {
-    g_displayStatus.batteryKnown = reading.available;
-    g_displayStatus.batteryPercent = reading.percent;
-    logPrintf(LogLevel::Info, "Battery: %d%%", g_displayStatus.batteryPercent);
-  } else {
-    g_displayStatus.batteryKnown = false;
-    g_displayStatus.batteryPercent = -1;
-    logInfo("Battery: unavailable");
+  readRemoteBattery(reading);
+  updateBatteryDisplayStatus(reading);
+
+  ++g_powerRtc.eventSeq;
+  if (strcmp(eventName, "wake") == 0) {
+    ++g_powerRtc.wakeCount;
+    if (reading.voltageKnown) {
+      g_powerRtc.lastWakeVoltageMv = reading.voltageMv;
+    }
+  } else if (strstr(eventName, "sleep") != nullptr) {
+    if (reading.voltageKnown) {
+      g_powerRtc.lastSleepVoltageMv = reading.voltageMv;
+    }
+    g_powerRtc.lastAwakeMs = awakeMs;
+  }
+  if (reading.available) {
+    g_powerRtc.lastRawSoc = reading.percent;
+  }
+
+  const String line = buildPowerTelemetryLine(eventName,
+                                             reading,
+                                             awakeMs,
+                                             g_displayStatus.batteryDisplayOverride,
+                                             g_displayStatus.batteryDisplayPercent);
+  logPrintf(LogLevel::Info, "Power telemetry: %s", line.c_str());
+  if (uploadToHa) {
+    sendPowerTelemetryToHa(line, reading);
+  }
+  return line;
+}
+
+void flushPendingWakeTelemetry() {
+#if REMOTE_ENABLE_POWER_TELEMETRY
+  if (g_pendingWakeTelemetry.length() == 0 || !g_displayStatus.wifiConnected || !g_displayStatus.haApiOk) {
+    return;
+  }
+
+  RemoteBatteryReading reading;
+  readRemoteBattery(reading);
+  sendPowerTelemetryToHa(g_pendingWakeTelemetry, reading);
+  g_pendingWakeTelemetry = "";
+#endif
+}
+
+void enterRemoteSleep(const char *reason) {
+  const String eventName = String(reason) + "_sleep";
+  recordPowerTelemetryEvent(eventName.c_str(), millis(), true);
+  g_powerManager.goToSleep();
+}
+
+void updateBatteryForRender() {
+  const bool chargerConfigured = configureRemoteChargerForRemoteUse();
+
+  RemoteBatteryReading reading;
+  readRemoteBattery(reading);
+  updateBatteryDisplayStatus(reading);
+
+  logPrintf(LogLevel::Info,
+            "Battery gauge: soc=%s%s voltage=%s current=%s avg=%s RM/FCC=%s SOH=%s batt=0x%s op=0x%s",
+            reading.available ? String(reading.percent).c_str() : "--",
+            reading.available ? "%" : "",
+            reading.voltageKnown ? (String(reading.voltageMv) + "mV").c_str() : "--",
+            reading.currentKnown ? (String(reading.currentMa) + "mA").c_str() : "--",
+            reading.averageCurrentKnown ? (String(reading.averageCurrentMa) + "mA").c_str() : "--",
+            reading.remainingCapacityKnown && reading.fullChargeCapacityKnown
+                ? (String(reading.remainingCapacityMah) + "/" + reading.fullChargeCapacityMah + "mAh").c_str()
+                : "--",
+            reading.stateOfHealthKnown ? (String(reading.stateOfHealthPercent) + "%").c_str() : "--",
+            reading.batteryStatusKnown ? String(reading.batteryStatus, HEX).c_str() : "--",
+            reading.operationStatusKnown ? String(reading.operationStatus, HEX).c_str() : "--");
+
+  logPrintf(LogLevel::Info,
+            "Battery charger: cfg=%s status=%s power=%s vbus=%u raw=0x%02x fault=0x%s vreg=%s ichg_lim=%s iterm=%s",
+            chargerConfigured ? "ok" : "failed",
+            reading.chargerAvailable ? chargeStatusName(reading.chargeStatus) : "unavailable",
+            reading.externalPower ? "good" : "none",
+            static_cast<unsigned>(reading.vbusStatus),
+            static_cast<unsigned>(reading.rawChargerStatus),
+            reading.chargerFaultKnown ? String(reading.rawChargerFault, HEX).c_str() : "--",
+            reading.chargeVoltageLimitKnown ? (String(reading.chargeVoltageLimitMv) + "mV").c_str() : "--",
+            reading.chargeCurrentLimitKnown ? (String(reading.chargeCurrentLimitMa) + "mA").c_str() : "--",
+            reading.terminationCurrentKnown ? (String(reading.terminationCurrentMa) + "mA").c_str() : "--");
+
+  if (g_displayStatus.batteryDisplayOverride) {
+    logPrintf(LogLevel::Info,
+              "Battery display override: raw=%d%% display=%s",
+              g_displayStatus.batteryPercent,
+              g_displayStatus.batteryDisplayLabel.c_str());
   }
 }
 
@@ -246,7 +575,7 @@ void maybeEnterIdleSleep() {
   logPrintf(LogLevel::Info,
             "Idle for %u ms; entering sleep",
             static_cast<unsigned>(now - g_lastActivityMs));
-  g_powerManager.goToSleep();
+  enterRemoteSleep("idle");
 }
 
 void renderStatusUi() {
@@ -658,7 +987,7 @@ bool executeMoreActionForTap(int16_t x, int16_t y, String &outLog) {
   if (kMoreSleep.contains(x, y)) {
     outLog = "Sleep Remote"; 
     logPrintf(LogLevel::Info, "Executing deep sleep command from More page");
-    g_powerManager.goToSleep();
+    enterRemoteSleep("manual");
     return true;
   }
   outLog = "";
@@ -815,6 +1144,8 @@ void setupRemoteApp() {
   g_displayStatus.entityId = HA_TEST_ENTITY_ID;
   g_displayStatus.writeTestEnabled = REMOTE_ENABLE_HA_WRITE_TEST;
   g_displayStatus.configOk = validateConfig();
+  initPowerTelemetryRtc();
+  g_pendingWakeTelemetry = recordPowerTelemetryEvent("wake");
   markActivity();
 
   initRemoteDisplay();
@@ -828,6 +1159,7 @@ void setupRemoteApp() {
 
   if (connectWifi(g_displayStatus)) {
     printHomeAssistantStatus(g_haClient, g_displayStatus);
+    flushPendingWakeTelemetry();
     runHomeAssistantWriteTest(g_haClient);
   }
 

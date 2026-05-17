@@ -23,6 +23,15 @@
 #define HA_WRITE_TEST_ENTITY_ID "input_boolean.lily_remote_test"
 #define HA_WRITE_TEST_TEXT_ENTITY_ID "input_text.lily_remote_last_test"
 
+// Optional power telemetry helpers. These are safe write-only Home Assistant helpers
+// used as a battery/sleep flight recorder when the remote wakes or sleeps.
+#define REMOTE_ENABLE_POWER_TELEMETRY 1
+#define HA_POWER_EVENT_ENTITY_ID "input_text.lily_remote_power_event"
+#define HA_POWER_LOG_ENTITY_ID "input_text.lily_remote_power_log"
+#define HA_POWER_VOLTAGE_ENTITY_ID "input_number.lily_remote_battery_voltage_mv"
+#define HA_POWER_SOC_ENTITY_ID "input_number.lily_remote_raw_soc"
+#define HA_POWER_WAKE_COUNT_ENTITY_ID "input_number.lily_remote_wake_count"
+
 // Set to 1 only while visually testing 4-bit e-paper grayscale output.
 #define REMOTE_ENABLE_GRAYSCALE_TEST 0
 

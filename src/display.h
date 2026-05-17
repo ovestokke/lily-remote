@@ -20,6 +20,13 @@ struct RemoteDisplayStatus {
 
   bool batteryKnown = false;
   int16_t batteryPercent = -1;
+  bool batteryDisplayOverride = false;
+  int16_t batteryDisplayPercent = -1;
+  String batteryDisplayLabel;
+  bool chargerKnown = false;
+  bool externalPower = false;
+  bool batteryCharging = false;
+  bool batteryChargeDone = false;
 
   bool writeTestEnabled = false;
 };

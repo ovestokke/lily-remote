@@ -254,16 +254,33 @@ void drawBatteryIndicator(const RemoteDisplayStatus &status) {
   g_epaper.drawRect(x, y, w, h, BBEP_BLACK);
   g_epaper.fillRect(x + w, y + 5, terminalW, 8, BBEP_BLACK);
 
-  if (status.batteryKnown) {
-    const int16_t percent = constrain(status.batteryPercent, 0, 100);
+  const bool hasDisplayPercent = status.batteryDisplayPercent >= 0;
+  const bool hasRawPercent = status.batteryKnown;
+  const int16_t percent = constrain(hasDisplayPercent ? status.batteryDisplayPercent : status.batteryPercent, 0, 100);
+  String label = "--%";
+
+  if (hasDisplayPercent || hasRawPercent) {
     const int32_t fillW = ((w - 4) * percent + 50) / 100;
     if (fillW > 0) {
       g_epaper.fillRect(x + 2, y + 2, fillW, h - 4, BBEP_BLACK);
     }
-    drawText8(String(percent) + "%", x + 46, y + 5);
-  } else {
-    drawText8("--%", x + 46, y + 5);
+    if (status.batteryDisplayLabel.length() > 0) {
+      label = status.batteryDisplayLabel;
+    } else {
+      label = String(percent) + "%";
+    }
   }
+
+  if (status.chargerKnown) {
+    if (status.batteryCharging) {
+      label += "+";
+    } else if (status.batteryChargeDone) {
+      label += "F";
+    } else if (status.externalPower && !status.batteryChargeDone) {
+      label += "P";
+    }
+  }
+  drawText8(label, x + 46, y + 5);
 }
 
 void drawTopBar(const char *title, const RemoteDisplayStatus &status) {
