@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <driver/gpio.h>
 #include <esp_sleep.h>
 #include <esp_system.h>
 
@@ -24,7 +25,15 @@ namespace {
 constexpr uint32_t kSerialBaud = 115200;
 constexpr uint32_t kWifiTimeoutMs = 20000;
 constexpr uint32_t kServiceCallCooldownMs = 1200;
-constexpr uint32_t kIdleSleepTimeoutMs = 5UL * 60UL * 1000UL;
+
+#ifndef REMOTE_IDLE_SLEEP_TIMEOUT_MS
+#define REMOTE_IDLE_SLEEP_TIMEOUT_MS (90UL * 1000UL)
+#endif
+#ifndef REMOTE_TOUCH_WAKE_GPIO
+#define REMOTE_TOUCH_WAKE_GPIO 3
+#endif
+
+constexpr uint32_t kIdleSleepTimeoutMs = REMOTE_IDLE_SLEEP_TIMEOUT_MS;
 
 #ifndef REMOTE_ENABLE_HA_WRITE_TEST
 #define REMOTE_ENABLE_HA_WRITE_TEST 0
@@ -74,6 +83,26 @@ constexpr uint32_t kIdleSleepTimeoutMs = 5UL * 60UL * 1000UL;
 #define HA_POWER_WAKE_COUNT_ENTITY_ID "input_number.lily_remote_wake_count"
 #endif
 
+#ifndef REMOTE_POWER_AUDIT_MODE
+#define REMOTE_POWER_AUDIT_MODE 0
+#endif
+
+#ifndef REMOTE_POWER_AUDIT_TIMER_MINUTES
+#define REMOTE_POWER_AUDIT_TIMER_MINUTES 30
+#endif
+
+#ifndef REMOTE_POWER_AUDIT_ACTIVE_LOG_SECONDS
+#define REMOTE_POWER_AUDIT_ACTIVE_LOG_SECONDS 60
+#endif
+
+#ifndef REMOTE_POWER_AUDIT_RESET_HOLD_SECONDS
+#define REMOTE_POWER_AUDIT_RESET_HOLD_SECONDS (5UL * 60UL)
+#endif
+
+#ifndef REMOTE_POWER_AUDIT_UNPLUG_DEBOUNCE_SECONDS
+#define REMOTE_POWER_AUDIT_UNPLUG_DEBOUNCE_SECONDS 5
+#endif
+
 struct PowerTelemetryRtcState {
   uint32_t magic = 0;
   uint32_t eventSeq = 0;
@@ -82,6 +111,8 @@ struct PowerTelemetryRtcState {
   uint16_t lastSleepVoltageMv = 0;
   int16_t lastRawSoc = -1;
   uint32_t lastAwakeMs = 0;
+  uint8_t lastWakeCause = 0;
+  uint8_t lastIrqLevel = 0;
 };
 
 constexpr uint32_t kPowerTelemetryMagic = 0x4C525057; // "LRPW"
@@ -175,6 +206,22 @@ void printHomeAssistantStatus(HaClient &haClient, RemoteDisplayStatus &displaySt
   } else {
     displayStatus.entityOk = false;
   }
+}
+
+bool connectHomeAssistantApi(RemoteDisplayStatus &displayStatus) {
+  if (!connectWifi(displayStatus)) {
+    return false;
+  }
+
+  if (g_haClient.getApiMessage(displayStatus.haMessage)) {
+    displayStatus.haApiOk = true;
+    logPrintf(LogLevel::Info, "Home Assistant API: %s", displayStatus.haMessage.c_str());
+    return true;
+  }
+
+  displayStatus.haApiOk = false;
+  logError("Home Assistant API check failed");
+  return false;
 }
 
 void runHomeAssistantWriteTest(HaClient &haClient) {
@@ -391,9 +438,9 @@ void updateBatteryDisplayStatus(const RemoteBatteryReading &reading) {
                                     reading.chargeStatus == RemoteChargeStatus::FastCharging;
   g_displayStatus.batteryChargeDone = reading.chargeStatus == RemoteChargeStatus::ChargeDone;
 
-  const bool chargerPowerFaultClear = !reading.chargerFaultKnown || (reading.rawChargerFault & 0x7F) == 0;
-  if (reading.chargerAvailable && reading.externalPower && chargerPowerFaultClear &&
-      reading.chargeStatus == RemoteChargeStatus::ChargeDone) {
+  if (reading.chargerAvailable && reading.externalPower &&
+      reading.chargeStatus == RemoteChargeStatus::ChargeDone &&
+      (!reading.chargerFaultKnown || reading.rawChargerFault == 0)) {
     g_displayStatus.batteryDisplayOverride = true;
     g_displayStatus.batteryDisplayPercent = 100;
     g_displayStatus.batteryDisplayLabel = "100%";
@@ -427,11 +474,15 @@ String buildPowerTelemetryLine(const char *eventName,
                                uint32_t awakeMs,
                                bool displayOverride,
                                int16_t displayPercent) {
+  const auto wakeCause = esp_sleep_get_wakeup_cause();
+  const int irqLevel = gpio_get_level(static_cast<gpio_num_t>(REMOTE_TOUCH_WAKE_GPIO));
+
   String line = String("seq=") + g_powerRtc.eventSeq +
                 " ev=" + eventName +
                 " wake=" + g_powerRtc.wakeCount +
-                " cause=" + wakeCauseName(esp_sleep_get_wakeup_cause()) +
-                " rst=" + static_cast<int>(esp_reset_reason());
+                " cause=" + wakeCauseName(wakeCause) +
+                " rst=" + static_cast<int>(esp_reset_reason()) +
+                " irq=" + irqLevel;
 
   if (reading.voltageKnown) {
     line += String(" mv=") + reading.voltageMv;
@@ -439,7 +490,7 @@ String buildPowerTelemetryLine(const char *eventName,
   if (reading.available) {
     line += String(" soc=") + reading.percent;
   }
-  if (displayOverride && displayPercent >= 0) {
+  if (displayPercent >= 0) {
     line += String(" disp=") + displayPercent;
   }
   if (reading.remainingCapacityKnown && reading.fullChargeCapacityKnown) {
@@ -461,6 +512,13 @@ String buildPowerTelemetryLine(const char *eventName,
   if (g_powerRtc.lastSleepVoltageMv > 0) {
     line += String(" prev_sleep_mv=") + g_powerRtc.lastSleepVoltageMv;
   }
+  if (reading.voltageKnown && g_powerRtc.lastSleepVoltageMv > 0) {
+    line += String(" vdelta=") + (static_cast<int32_t>(reading.voltageMv) - g_powerRtc.lastSleepVoltageMv);
+  }
+#if REMOTE_POWER_AUDIT_MODE != 0
+  line += String(" audit=") + REMOTE_POWER_AUDIT_MODE;
+  line += String(" amin=") + REMOTE_POWER_AUDIT_TIMER_MINUTES;
+#endif
 
   return trimTelemetryLine(line);
 }
@@ -471,6 +529,9 @@ String recordPowerTelemetryEvent(const char *eventName, uint32_t awakeMs = 0, bo
   RemoteBatteryReading reading;
   readRemoteBattery(reading);
   updateBatteryDisplayStatus(reading);
+
+  g_powerRtc.lastWakeCause = static_cast<uint8_t>(esp_sleep_get_wakeup_cause());
+  g_powerRtc.lastIrqLevel = static_cast<uint8_t>(gpio_get_level(static_cast<gpio_num_t>(REMOTE_TOUCH_WAKE_GPIO)));
 
   ++g_powerRtc.eventSeq;
   if (strcmp(eventName, "wake") == 0) {
@@ -730,6 +791,9 @@ void handlePageSwipe(const RemoteTouchEvent &event) {
 const char *activityScriptForTap(int16_t x, int16_t y) {
   if (kActivityWatchTvButton.contains(x, y)) {
     return "activity_watch_tv";
+  }
+  if (kActivityWatchPlexButton.contains(x, y)) {
+    return "activity_watch_plex";
   }
   if (kActivityPs5Button.contains(x, y)) {
     return "activity_play_ps5";
@@ -1130,6 +1194,103 @@ void handleSafeControlTouch(const RemoteTouchEvent &event) {
   (void)event;
 #endif
 }
+
+bool refreshAuditPowerStatus() {
+  RemoteBatteryReading reading;
+  readRemoteBattery(reading);
+  updateBatteryDisplayStatus(reading);
+  return reading.chargerAvailable && reading.externalPower;
+}
+
+bool isAuditServiceWake() {
+  return esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED || esp_reset_reason() != ESP_RST_DEEPSLEEP;
+}
+
+void holdPowerAuditAwakeUntilUnplug(bool serviceWake) {
+  const uint32_t logIntervalMs = REMOTE_POWER_AUDIT_ACTIVE_LOG_SECONDS * 1000UL;
+  const uint32_t resetHoldMs = REMOTE_POWER_AUDIT_RESET_HOLD_SECONDS * 1000UL;
+  const uint32_t unplugDebounceMs = REMOTE_POWER_AUDIT_UNPLUG_DEBOUNCE_SECONDS * 1000UL;
+  const uint32_t startMs = millis();
+  uint32_t lastLogMs = 0;
+  uint32_t unpluggedSinceMs = 0;
+  bool sawExternalPower = false;
+
+  logPrintf(LogLevel::Info,
+            "Power audit hold: external power keeps device awake; reset/cold boot hold is %u seconds",
+            static_cast<unsigned>(REMOTE_POWER_AUDIT_RESET_HOLD_SECONDS));
+
+  while (true) {
+    const uint32_t now = millis();
+    const bool externalPower = refreshAuditPowerStatus();
+    if (externalPower) {
+      sawExternalPower = true;
+    }
+    const bool resetHoldActive = serviceWake && !sawExternalPower && now - startMs < resetHoldMs;
+
+    if (externalPower || resetHoldActive) {
+      unpluggedSinceMs = 0;
+    } else if (unpluggedSinceMs == 0) {
+      unpluggedSinceMs = now;
+    } else if (now - unpluggedSinceMs >= unplugDebounceMs) {
+      logInfo("Power audit hold released; starting battery sleep test");
+      break;
+    }
+
+    if (lastLogMs == 0 || now - lastLogMs >= logIntervalMs) {
+      if (g_displayStatus.configOk &&
+          (!g_displayStatus.wifiConnected || WiFi.status() != WL_CONNECTED || !g_displayStatus.haApiOk)) {
+        connectHomeAssistantApi(g_displayStatus);
+      }
+      recordPowerTelemetryEvent(externalPower ? "audit_usb_hold" : "audit_reset_hold", now, g_displayStatus.configOk);
+      lastLogMs = now;
+    }
+
+    delay(250);
+  }
+}
+
+void runPowerAuditMode() {
+  logPrintf(LogLevel::Info, "Power audit mode %d starting", REMOTE_POWER_AUDIT_MODE);
+
+  if (!g_displayStatus.configOk) {
+    logInfo("Power audit mode requires valid WiFi and HA config; staying awake for recovery");
+    while (true) {
+      delay(1000);
+    }
+  }
+
+  const bool serviceWake = isAuditServiceWake();
+  const bool externalPower = refreshAuditPowerStatus();
+  connectHomeAssistantApi(g_displayStatus);
+  flushPendingWakeTelemetry();
+
+#if REMOTE_POWER_AUDIT_MODE != 3
+  if (externalPower || serviceWake) {
+    holdPowerAuditAwakeUntilUnplug(serviceWake);
+  }
+#endif
+
+#if REMOTE_POWER_AUDIT_MODE == 3
+  const uint32_t logIntervalMs = REMOTE_POWER_AUDIT_ACTIVE_LOG_SECONDS * 1000UL;
+  uint32_t lastLogMs = millis();
+  logInfo("Power audit active mode: staying awake and logging periodically");
+
+  while (true) {
+    if (millis() - lastLogMs >= logIntervalMs) {
+      if ((!g_displayStatus.wifiConnected || WiFi.status() != WL_CONNECTED || !g_displayStatus.haApiOk)) {
+        connectHomeAssistantApi(g_displayStatus);
+      }
+      recordPowerTelemetryEvent("audit_tick", millis(), true);
+      lastLogMs = millis();
+    }
+    delay(100);
+  }
+#else
+  const uint32_t timerSeconds = REMOTE_POWER_AUDIT_TIMER_MINUTES * 60UL;
+  recordPowerTelemetryEvent(REMOTE_POWER_AUDIT_MODE == 1 ? "timer_sleep" : "touch_sleep", millis(), true);
+  g_powerManager.auditSleep(timerSeconds, REMOTE_POWER_AUDIT_MODE == 2);
+#endif
+}
 } // namespace
 
 void setupRemoteApp() {
@@ -1146,8 +1307,13 @@ void setupRemoteApp() {
   g_displayStatus.configOk = validateConfig();
   initPowerTelemetryRtc();
   g_pendingWakeTelemetry = recordPowerTelemetryEvent("wake");
-  markActivity();
 
+#if REMOTE_POWER_AUDIT_MODE != 0
+  runPowerAuditMode();
+  return;
+#endif
+
+  markActivity();
   initRemoteDisplay();
 
   if (!g_displayStatus.configOk) {

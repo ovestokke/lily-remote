@@ -29,10 +29,11 @@ constexpr int16_t kUiScreenWidth = 540;
 constexpr int16_t kUiScreenHeight = 960;
 constexpr UiRect kSafeControlToggleButton{64, 520, 412, 150};
 
-constexpr UiRect kActivityWatchTvButton{24, 238, 238, 126};
-constexpr UiRect kActivityPs5Button{278, 238, 238, 126};
-constexpr UiRect kActivityMusicButton{24, 378, 238, 126};
-constexpr UiRect kActivityRecordsButton{278, 378, 238, 126};
+constexpr UiRect kActivityWatchTvButton{24, 188, 238, 126};
+constexpr UiRect kActivityWatchPlexButton{278, 188, 238, 126};
+constexpr UiRect kActivityPs5Button{24, 328, 238, 126};
+constexpr UiRect kActivityMusicButton{278, 328, 238, 126};
+constexpr UiRect kActivityRecordsButton{24, 468, 492, 126};
 constexpr UiRect kMediaOffButton{420, 40, 96, 38};
 constexpr UiRect kOnlinePillRect{312, 40, 98, 38};
 

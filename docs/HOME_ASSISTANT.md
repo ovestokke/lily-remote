@@ -65,6 +65,7 @@ Real remote buttons must call Home Assistant scripts/helpers, not living-room de
 | Firmware intent | Home Assistant script |
 | --- | --- |
 | Watch TV | `script.activity_watch_tv` |
+| Watch Plex | `script.activity_watch_plex` |
 | Play PS5 | `script.activity_play_ps5` |
 | Stream music | `script.activity_stream_music` |
 | Listen to records / phono | `script.activity_listen_records` |
@@ -127,9 +128,23 @@ Device feature split:
 ### Status entities
 
 - `sensor.remote_summary` is the primary read-only summary state for firmware.
-- `input_select.remote_activity` stores current activity; options include `Off`, `Watch TV`, `Play PS5`, `Listen to Records`, `Stream Music`, and `Bathroom Sonos`.
+- `input_select.remote_activity` stores current activity; options include `Off`, `Watch TV`, `Watch Plex`, `Play PS5`, `Listen to Records`, `Stream Music`, and `Bathroom Sonos`.
 - `input_text.remote_last_message` stores the latest backend message.
 - `sensor.remote_summary` attributes include activity, last message, TV, Telia, PS5, WiiM source/volume, KEF power/input, bathroom, and lights state.
+
+## Battery telemetry helpers
+
+Firmware writes latest power/battery event text to `input_text.lily_remote_power_event` and current numeric helpers for voltage, raw SOC, and wake count. Home Assistant exposes parsed template sensors for graphing:
+
+- `sensor.lily_remote_display_soc`
+- `sensor.lily_remote_telemetry_raw_soc`
+- `sensor.lily_remote_telemetry_voltage`
+- `sensor.lily_remote_average_current`
+- `sensor.lily_remote_awake`
+- `sensor.lily_remote_event_type`
+- `sensor.lily_remote_wake_cause`
+- `sensor.lily_remote_charge_state`
+- `binary_sensor.lily_remote_external_power`
 
 ## Safe dummy-control page
 

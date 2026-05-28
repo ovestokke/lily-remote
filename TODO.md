@@ -122,6 +122,7 @@ All real actions should be exposed as HA scripts/helpers in `../homeassistant` f
 
 - [x] Confirm neutral activity scripts exist:
   - [x] `script.activity_watch_tv`
+  - [x] `script.activity_watch_plex`
   - [x] `script.activity_play_ps5`
   - [x] `script.activity_stream_music` for streaming music; replaces placeholder `script.activity_music`.
   - [x] `script.activity_listen_records` for phono/records.
@@ -149,6 +150,7 @@ All real actions should be exposed as HA scripts/helpers in `../homeassistant` f
 - [x] Scaffold disabled button layout: Power Off / All Off.
 - [x] Move the disabled power-off action out of the main grid into the top-bar media-off button.
 - [ ] Enable Button: Watch TV -> `script.activity_watch_tv`.
+- [x] Add Button: Watch Plex -> `script.activity_watch_plex`.
 - [ ] Enable Button: Play PS5 -> `script.activity_play_ps5`.
 - [ ] Enable Button: Stream Music -> `script.activity_stream_music`.
 - [ ] Enable Button: Records/Phono -> `script.activity_listen_records`.

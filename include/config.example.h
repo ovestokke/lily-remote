@@ -46,3 +46,29 @@
 
 // Set to 1 later when deep-sleep behavior is implemented/tested.
 #define REMOTE_SLEEP_AFTER_BOOT 0
+
+// Normal UI idle sleep. E-paper keeps the last screen visible, so shorter idle
+// sleep saves battery without blanking the UI.
+#define REMOTE_IDLE_SLEEP_TIMEOUT_MS (90UL * 1000UL)
+
+// GT911 interrupt wake configuration. The fallback timer is only used if the
+// touch IRQ is already active at sleep time, which would otherwise cause an
+// immediate wake/sleep loop.
+#define REMOTE_TOUCH_WAKE_GPIO 3
+#define REMOTE_TOUCH_WAKE_LEVEL 0
+#define REMOTE_WAIT_FOR_TOUCH_IRQ_RELEASE_MS 1500
+#define REMOTE_SLEEP_FALLBACK_WAKE_SECONDS (15UL * 60UL)
+
+// Power-audit mode for isolating battery drain.
+// 0 = normal firmware
+// 1 = timer-only sleep audit
+// 2 = touch wake + timer heartbeat audit
+// 3 = stay awake and log periodically
+// Safety: audit modes stay awake while USB/external power is present. A cold
+// boot/reset also gets a temporary recovery hold if external power is not
+// detected, so a bad sleep test still has an upload window.
+#define REMOTE_POWER_AUDIT_MODE 0
+#define REMOTE_POWER_AUDIT_TIMER_MINUTES 30
+#define REMOTE_POWER_AUDIT_ACTIVE_LOG_SECONDS 60
+#define REMOTE_POWER_AUDIT_RESET_HOLD_SECONDS (5UL * 60UL)
+#define REMOTE_POWER_AUDIT_UNPLUG_DEBOUNCE_SECONDS 5

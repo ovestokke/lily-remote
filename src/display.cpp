@@ -730,9 +730,10 @@ void renderHomePage(const RemoteActivitiesPage &page) {
   drawTopBar("Home", page.status);
 
   drawActivityButton(kActivityWatchTvButton, "Watch TV", kMdiTv50Bmp, page.currentActivity == "Watch TV");
+  drawActivityButton(kActivityWatchPlexButton, "Plex", kMdiTv50Bmp, page.currentActivity == "Watch Plex");
   drawActivityButton(kActivityPs5Button, "Play PS5", kMdiPlaystation50Bmp, page.currentActivity == "Play PS5");
-  drawActivityButton(kActivityMusicButton, "Stream", kMdiMusic50Bmp, page.currentActivity == "Stream");
-  drawActivityButton(kActivityRecordsButton, "Records", kMdiRecord50Bmp, page.currentActivity == "Records");
+  drawActivityButton(kActivityMusicButton, "Stream", kMdiMusic50Bmp, page.currentActivity == "Stream Music" || page.currentActivity == "Stream");
+  drawActivityButton(kActivityRecordsButton, "Records", kMdiRecord50Bmp, page.currentActivity == "Listen to Records" || page.currentActivity == "Records");
 
   // Quick controls: Perfectly centered row using grid lines matching HTML margins
   g_epaper.drawRect(24, 746, 492, 76, BBEP_BLACK);
