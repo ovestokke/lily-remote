@@ -21,16 +21,42 @@
 #include "config.example.h"
 #endif
 
+#if defined(REMOTE_BUILD_RELEASE) && REMOTE_POWER_AUDIT_MODE != 0
+#error "Release builds must not enable REMOTE_POWER_AUDIT_MODE"
+#endif
+
 namespace {
 constexpr uint32_t kSerialBaud = 115200;
 constexpr uint32_t kWifiTimeoutMs = 20000;
 constexpr uint32_t kServiceCallCooldownMs = 1200;
 
+#ifndef REMOTE_IDLE_SLEEP_ENABLED
+#define REMOTE_IDLE_SLEEP_ENABLED 1
+#endif
 #ifndef REMOTE_IDLE_SLEEP_TIMEOUT_MS
 #define REMOTE_IDLE_SLEEP_TIMEOUT_MS (90UL * 1000UL)
 #endif
+#ifndef REMOTE_SLEEP_WAKE_TOUCH
+#define REMOTE_SLEEP_WAKE_TOUCH 1
+#endif
+#ifndef REMOTE_SLEEP_WAKE_POLICY
+#define REMOTE_SLEEP_WAKE_POLICY REMOTE_SLEEP_WAKE_TOUCH
+#endif
 #ifndef REMOTE_TOUCH_WAKE_GPIO
 #define REMOTE_TOUCH_WAKE_GPIO 3
+#endif
+#ifndef REMOTE_SLEEP_RECOVERY_HOLD_MS
+#define REMOTE_SLEEP_RECOVERY_HOLD_MS (5UL * 60UL * 1000UL)
+#endif
+#ifndef REMOTE_EXT0_FAST_WAKE_MS
+#define REMOTE_EXT0_FAST_WAKE_MS (10UL * 1000UL)
+#endif
+#ifndef REMOTE_EXT0_WAKE_LOOP_LIMIT
+#define REMOTE_EXT0_WAKE_LOOP_LIMIT 3
+#endif
+
+#if REMOTE_SLEEP_WAKE_POLICY != REMOTE_SLEEP_WAKE_TOUCH
+#error "Normal remote sleep must use touch wake"
 #endif
 
 constexpr uint32_t kIdleSleepTimeoutMs = REMOTE_IDLE_SLEEP_TIMEOUT_MS;
@@ -91,6 +117,14 @@ constexpr uint32_t kIdleSleepTimeoutMs = REMOTE_IDLE_SLEEP_TIMEOUT_MS;
 #define REMOTE_POWER_AUDIT_TIMER_MINUTES 30
 #endif
 
+#ifndef REMOTE_POWER_AUDIT_PROFILE
+#define REMOTE_POWER_AUDIT_PROFILE kPowerAuditProfileBaseline
+#endif
+
+#ifndef REMOTE_POWER_AUDIT_PROFILE_CYCLES
+#define REMOTE_POWER_AUDIT_PROFILE_CYCLES 3
+#endif
+
 #ifndef REMOTE_POWER_AUDIT_ACTIVE_LOG_SECONDS
 #define REMOTE_POWER_AUDIT_ACTIVE_LOG_SECONDS 60
 #endif
@@ -111,6 +145,9 @@ struct PowerTelemetryRtcState {
   uint16_t lastSleepVoltageMv = 0;
   int16_t lastRawSoc = -1;
   uint32_t lastAwakeMs = 0;
+  uint32_t consecutiveExt0Wakes = 0;
+  uint32_t consecutiveFastWakes = 0;
+  uint32_t sleepAbortCount = 0;
   uint8_t lastWakeCause = 0;
   uint8_t lastIrqLevel = 0;
 };
@@ -132,6 +169,36 @@ bool g_lastActionOk = true;
 bool g_sleepRequested = false;
 uint32_t g_lastServiceCallMs = 0;
 uint32_t g_lastActivityMs = 0;
+uint32_t g_sleepHoldUntilMs = 0;
+
+uint8_t activePowerAuditProfile() {
+#if REMOTE_POWER_AUDIT_PROFILE == 99
+  constexpr uint8_t kProfileCount = 6;
+  constexpr uint32_t kCycles = REMOTE_POWER_AUDIT_PROFILE_CYCLES > 0 ? REMOTE_POWER_AUDIT_PROFILE_CYCLES : 1;
+  const uint32_t wakeIndex = g_powerRtc.wakeCount > 0 ? g_powerRtc.wakeCount - 1 : 0;
+  return static_cast<uint8_t>((wakeIndex / kCycles) % kProfileCount);
+#else
+  return static_cast<uint8_t>(REMOTE_POWER_AUDIT_PROFILE);
+#endif
+}
+
+const char *powerAuditProfileName(uint8_t profile) {
+  switch (profile) {
+  case kPowerAuditProfileEspCleanup:
+    return "esp";
+  case kPowerAuditProfileTouchSleep:
+    return "touch";
+  case kPowerAuditProfileEpdPowerOff:
+    return "epd";
+  case kPowerAuditProfileI2cHighZ:
+    return "i2c_hiz";
+  case kPowerAuditProfileFullCleanup:
+    return "full";
+  case kPowerAuditProfileBaseline:
+  default:
+    return "base";
+  }
+}
 
 bool isPlaceholder(const char *value) {
   if (value == nullptr || value[0] == '\0') {
@@ -292,6 +359,20 @@ String currentActivityFromSummary() {
 
 bool isAfterMillis(uint32_t value, uint32_t reference) {
   return static_cast<int32_t>(value - reference) > 0;
+}
+
+bool sleepHoldActive(uint32_t now = millis()) {
+  return g_sleepHoldUntilMs != 0 && !isAfterMillis(now, g_sleepHoldUntilMs);
+}
+
+void holdSleepForRecovery(const char *reason, uint32_t holdMs = REMOTE_SLEEP_RECOVERY_HOLD_MS) {
+  const uint32_t now = millis();
+  g_sleepHoldUntilMs = now + holdMs;
+  g_lastActivityMs = now;
+  logPrintf(LogLevel::Warn,
+            "Sleep recovery hold active for %u ms: %s",
+            static_cast<unsigned>(holdMs),
+            reason != nullptr ? reason : "unknown");
 }
 
 void markActivity(uint32_t timestampMs = millis()) {
@@ -509,6 +590,11 @@ String buildPowerTelemetryLine(const char *eventName,
   if (awakeMs > 0) {
     line += String(" awake=") + awakeMs;
   }
+#if REMOTE_POWER_AUDIT_MODE == 0
+  if (strstr(eventName, "sleep") != nullptr) {
+    line += " policy=touch";
+  }
+#endif
   if (g_powerRtc.lastSleepVoltageMv > 0) {
     line += String(" prev_sleep_mv=") + g_powerRtc.lastSleepVoltageMv;
   }
@@ -516,7 +602,9 @@ String buildPowerTelemetryLine(const char *eventName,
     line += String(" vdelta=") + (static_cast<int32_t>(reading.voltageMv) - g_powerRtc.lastSleepVoltageMv);
   }
 #if REMOTE_POWER_AUDIT_MODE != 0
+  const uint8_t profile = activePowerAuditProfile();
   line += String(" audit=") + REMOTE_POWER_AUDIT_MODE;
+  line += String(" prof=") + powerAuditProfileName(profile);
   line += String(" amin=") + REMOTE_POWER_AUDIT_TIMER_MINUTES;
 #endif
 
@@ -530,15 +618,30 @@ String recordPowerTelemetryEvent(const char *eventName, uint32_t awakeMs = 0, bo
   readRemoteBattery(reading);
   updateBatteryDisplayStatus(reading);
 
-  g_powerRtc.lastWakeCause = static_cast<uint8_t>(esp_sleep_get_wakeup_cause());
+  const auto wakeCause = esp_sleep_get_wakeup_cause();
+  g_powerRtc.lastWakeCause = static_cast<uint8_t>(wakeCause);
   g_powerRtc.lastIrqLevel = static_cast<uint8_t>(gpio_get_level(static_cast<gpio_num_t>(REMOTE_TOUCH_WAKE_GPIO)));
 
   ++g_powerRtc.eventSeq;
   if (strcmp(eventName, "wake") == 0) {
     ++g_powerRtc.wakeCount;
+    const bool ext0Wake = wakeCause == ESP_SLEEP_WAKEUP_EXT0;
+    if (ext0Wake) {
+      ++g_powerRtc.consecutiveExt0Wakes;
+      if (g_powerRtc.lastAwakeMs > 0 && g_powerRtc.lastAwakeMs < REMOTE_EXT0_FAST_WAKE_MS) {
+        ++g_powerRtc.consecutiveFastWakes;
+      } else {
+        g_powerRtc.consecutiveFastWakes = 0;
+      }
+    } else {
+      g_powerRtc.consecutiveExt0Wakes = 0;
+      g_powerRtc.consecutiveFastWakes = 0;
+    }
     if (reading.voltageKnown) {
       g_powerRtc.lastWakeVoltageMv = reading.voltageMv;
     }
+  } else if (strcmp(eventName, "sleep_abort") == 0) {
+    ++g_powerRtc.sleepAbortCount;
   } else if (strstr(eventName, "sleep") != nullptr) {
     if (reading.voltageKnown) {
       g_powerRtc.lastSleepVoltageMv = reading.voltageMv;
@@ -575,9 +678,22 @@ void flushPendingWakeTelemetry() {
 }
 
 void enterRemoteSleep(const char *reason) {
+  if (!g_powerManager.prepareTouchSleep()) {
+    logPrintf(LogLevel::Warn, "Sleep aborted before commit: %s", reason != nullptr ? reason : "unknown");
+    recordPowerTelemetryEvent("sleep_abort", millis(), true);
+    g_sleepRequested = false;
+    holdSleepForRecovery("touch sleep preflight failed");
+    return;
+  }
+
   const String eventName = String(reason) + "_sleep";
   recordPowerTelemetryEvent(eventName.c_str(), millis(), true);
-  g_powerManager.goToSleep();
+  if (!g_powerManager.finishTouchSleep()) {
+    logPrintf(LogLevel::Warn, "Sleep aborted at commit: %s", reason != nullptr ? reason : "unknown");
+    recordPowerTelemetryEvent("sleep_abort", millis(), true);
+    g_sleepRequested = false;
+    holdSleepForRecovery("touch sleep commit failed");
+  }
 }
 
 void updateBatteryForRender() {
@@ -621,14 +737,34 @@ void updateBatteryForRender() {
   }
 }
 
+bool externalPowerPresentForSleepCheck() {
+  configureRemoteChargerForRemoteUse();
+  RemoteBatteryReading reading;
+  readRemoteBattery(reading);
+  updateBatteryDisplayStatus(reading);
+  return reading.chargerAvailable && reading.externalPower;
+}
+
 void maybeEnterIdleSleep() {
+#if !REMOTE_IDLE_SLEEP_ENABLED
+  return;
+#endif
   if (g_sleepRequested) {
+    return;
+  }
+
+  if (sleepHoldActive()) {
     return;
   }
 
   syncTouchActivity();
   const uint32_t now = millis();
   if (now - g_lastActivityMs < kIdleSleepTimeoutMs) {
+    return;
+  }
+
+  if (externalPowerPresentForSleepCheck()) {
+    holdSleepForRecovery("external power present");
     return;
   }
 
@@ -1287,8 +1423,9 @@ void runPowerAuditMode() {
   }
 #else
   const uint32_t timerSeconds = REMOTE_POWER_AUDIT_TIMER_MINUTES * 60UL;
+  const uint8_t auditProfile = activePowerAuditProfile();
   recordPowerTelemetryEvent(REMOTE_POWER_AUDIT_MODE == 1 ? "timer_sleep" : "touch_sleep", millis(), true);
-  g_powerManager.auditSleep(timerSeconds, REMOTE_POWER_AUDIT_MODE == 2);
+  g_powerManager.auditSleep(timerSeconds, REMOTE_POWER_AUDIT_MODE == 2, auditProfile);
 #endif
 }
 } // namespace
@@ -1307,6 +1444,14 @@ void setupRemoteApp() {
   g_displayStatus.configOk = validateConfig();
   initPowerTelemetryRtc();
   g_pendingWakeTelemetry = recordPowerTelemetryEvent("wake");
+
+  if (g_displayStatus.externalPower) {
+    holdSleepForRecovery("external power present");
+  } else if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
+    holdSleepForRecovery("non-deep-sleep reset");
+  } else if (g_powerRtc.consecutiveFastWakes >= REMOTE_EXT0_WAKE_LOOP_LIMIT) {
+    holdSleepForRecovery("fast EXT0 wake loop");
+  }
 
 #if REMOTE_POWER_AUDIT_MODE != 0
   runPowerAuditMode();

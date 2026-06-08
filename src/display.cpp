@@ -598,6 +598,16 @@ bool initRemoteDisplay() {
   return true;
 }
 
+void shutdownRemoteDisplayForSleep() {
+  if (!g_displayReady) {
+    return;
+  }
+
+  g_epaper.einkPower(0);
+  g_epaper.deInit();
+  g_displayReady = false;
+}
+
 void renderTouchTestPage() {
   if (!g_displayReady && !initRemoteDisplay()) {
     return;

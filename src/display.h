@@ -90,6 +90,7 @@ struct RemoteMorePage {
 };
 
 bool initRemoteDisplay();
+void shutdownRemoteDisplayForSleep();
 void renderStatusPage(const RemoteDisplayStatus &status);
 void renderSafeControlPage(const RemoteSafeControlPage &page);
 void renderHomePage(const RemoteActivitiesPage &page);

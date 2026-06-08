@@ -15,12 +15,16 @@
 #ifndef REMOTE_ENABLE_I2C_SCAN
 #define REMOTE_ENABLE_I2C_SCAN 0
 #endif
+#ifndef REMOTE_TOUCH_WAKE_LEVEL
+#define REMOTE_TOUCH_WAKE_LEVEL 0
+#endif
 
 namespace {
 // T5 E-Paper S3 Pro / Pro Lite touch bus from vendor examples.
 constexpr int kTouchIrq = 3;
 constexpr int kTouchRst = 9;
 constexpr uint8_t kGt911Address = GT911_SLAVE_ADDRESS_L;
+constexpr uint16_t kGt911StatusRegister = 0x814E;
 
 // Display is in portrait with FastEPD rotation 90: logical screen 540x960.
 constexpr int16_t kScreenWidth = 540;
@@ -97,6 +101,28 @@ RemoteTouchEvent classifyGesture(const RemoteTouchPoint &start, const RemoteTouc
   return event;
 }
 
+bool writeGt911Register8(uint16_t reg, uint8_t value) {
+  Wire.beginTransmission(kGt911Address);
+  Wire.write(static_cast<uint8_t>(reg >> 8));
+  Wire.write(static_cast<uint8_t>(reg & 0xFF));
+  Wire.write(value);
+  return Wire.endTransmission() == 0;
+}
+
+bool readGt911Register8(uint16_t reg, uint8_t &value) {
+  Wire.beginTransmission(kGt911Address);
+  Wire.write(static_cast<uint8_t>(reg >> 8));
+  Wire.write(static_cast<uint8_t>(reg & 0xFF));
+  if (Wire.endTransmission(false) != 0) {
+    return false;
+  }
+  if (Wire.requestFrom(kGt911Address, static_cast<uint8_t>(1)) != 1) {
+    return false;
+  }
+  value = Wire.read();
+  return true;
+}
+
 void printGesture(const RemoteTouchEvent &event) {
   switch (event.gesture) {
   case RemoteTouchGesture::LongPress:
@@ -169,6 +195,65 @@ bool isRemoteTouchReady() {
 
 uint32_t getRemoteTouchLastActivityMs() {
   return g_lastTouchMs;
+}
+
+bool clearRemoteTouchForSleep(uint32_t timeoutMs) {
+  initRemoteI2cBus();
+  pinMode(kTouchIrq, INPUT_PULLUP);
+
+  const uint32_t start = millis();
+  bool statusClear = false;
+  while (millis() - start < timeoutMs) {
+    uint8_t status = 0;
+    if (!readGt911Register8(kGt911StatusRegister, status)) {
+      Serial.println("GT911 sleep preflight: status read failed");
+      return false;
+    }
+
+    const uint8_t pointCount = status & 0x0F;
+    const bool dataReady = (status & 0x80) != 0;
+    if (dataReady || pointCount > 0) {
+      writeGt911Register8(kGt911StatusRegister, 0x00);
+      g_wasPressed = false;
+      delay(20);
+      continue;
+    }
+
+    if (digitalRead(kTouchIrq) != REMOTE_TOUCH_WAKE_LEVEL) {
+      statusClear = true;
+      break;
+    }
+    delay(20);
+  }
+
+  Serial.printf("GT911 sleep preflight: %s irq=%d\n",
+                statusClear ? "clear" : "not clear",
+                digitalRead(kTouchIrq));
+  return statusClear;
+}
+
+bool sleepRemoteTouchController() {
+  initRemoteI2cBus();
+
+  // GT911 sleep command expects INT/IRQ held low before command 0x05.
+  pinMode(kTouchIrq, OUTPUT);
+  digitalWrite(kTouchIrq, LOW);
+  delay(5);
+
+  Wire.beginTransmission(kGt911Address);
+  Wire.write(0x80);
+  Wire.write(0x40);
+  Wire.write(0x05);
+  const bool ok = Wire.endTransmission() == 0;
+  delay(5);
+
+  // Do not leave IRQ driven low after the audit sleep command.
+  pinMode(kTouchIrq, INPUT_PULLUP);
+  return ok;
+}
+
+bool sleepRemoteTouchControllerForPowerAudit() {
+  return sleepRemoteTouchController();
 }
 
 bool pollRemoteTouch(RemoteTouchEvent *event) {

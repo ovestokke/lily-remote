@@ -1,7 +1,9 @@
 #include "power_manager.h"
 
 #include "display.h"
+#include "i2c_bus.h"
 #include "log.h"
+#include "touch.h"
 
 #include <WiFi.h>
 #include <driver/gpio.h>
@@ -22,8 +24,11 @@
 #ifndef REMOTE_WAIT_FOR_TOUCH_IRQ_RELEASE_MS
 #define REMOTE_WAIT_FOR_TOUCH_IRQ_RELEASE_MS 1500
 #endif
-#ifndef REMOTE_SLEEP_FALLBACK_WAKE_SECONDS
-#define REMOTE_SLEEP_FALLBACK_WAKE_SECONDS (15UL * 60UL)
+#ifndef REMOTE_TOUCH_SLEEP_CLEAR_TIMEOUT_MS
+#define REMOTE_TOUCH_SLEEP_CLEAR_TIMEOUT_MS 1500
+#endif
+#ifndef REMOTE_TOUCH_SLEEP_RELEASE_I2C
+#define REMOTE_TOUCH_SLEEP_RELEASE_I2C 0
 #endif
 
 namespace {
@@ -32,13 +37,57 @@ void shutdownWifiForSleep() {
   WiFi.mode(WIFI_OFF);
 }
 
-bool waitForTouchWakeInactive() {
+void shutdownEspPeripheralsForSleep() {
+  shutdownWifiForSleep();
+#if defined(CONFIG_BT_ENABLED)
+  btStop();
+#endif
+  esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
+}
+
+void applyAuditProfileForSleep(uint8_t auditProfile, bool enableTouchWake) {
+  switch (auditProfile) {
+  case kPowerAuditProfileEspCleanup:
+    shutdownEspPeripheralsForSleep();
+    break;
+  case kPowerAuditProfileTouchSleep:
+    if (!enableTouchWake) {
+      const bool ok = sleepRemoteTouchControllerForPowerAudit();
+      logPrintf(ok ? LogLevel::Info : LogLevel::Warn,
+                "GT911 audit sleep command %s",
+                ok ? "sent" : "failed");
+    }
+    break;
+  case kPowerAuditProfileEpdPowerOff:
+    shutdownRemoteDisplayForSleep();
+    break;
+  case kPowerAuditProfileI2cHighZ:
+    shutdownRemoteI2cBusForSleep();
+    break;
+  case kPowerAuditProfileFullCleanup:
+    shutdownEspPeripheralsForSleep();
+    if (!enableTouchWake) {
+      const bool ok = sleepRemoteTouchControllerForPowerAudit();
+      logPrintf(ok ? LogLevel::Info : LogLevel::Warn,
+                "GT911 audit sleep command %s",
+                ok ? "sent" : "failed");
+    }
+    shutdownRemoteDisplayForSleep();
+    shutdownRemoteI2cBusForSleep();
+    break;
+  case kPowerAuditProfileBaseline:
+  default:
+    break;
+  }
+}
+
+bool waitForTouchWakeInactive(uint32_t timeoutMs = REMOTE_WAIT_FOR_TOUCH_IRQ_RELEASE_MS) {
   const gpio_num_t touchWakeGpio = static_cast<gpio_num_t>(REMOTE_TOUCH_WAKE_GPIO);
   pinMode(REMOTE_TOUCH_WAKE_GPIO, INPUT_PULLUP);
 
   const uint32_t start = millis();
   while (gpio_get_level(touchWakeGpio) == REMOTE_TOUCH_WAKE_LEVEL &&
-         millis() - start < REMOTE_WAIT_FOR_TOUCH_IRQ_RELEASE_MS) {
+         millis() - start < timeoutMs) {
     delay(20);
   }
 
@@ -56,34 +105,25 @@ void armTimerWake(uint32_t seconds) {
   }
 }
 
-void enableTouchWakeOrFallbackTimer() {
+bool armTouchWakeOnly() {
   const gpio_num_t touchWakeGpio = static_cast<gpio_num_t>(REMOTE_TOUCH_WAKE_GPIO);
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
 
-  if (!waitForTouchWakeInactive()) {
-    logPrintf(LogLevel::Warn,
-              "Touch wake GPIO %d is still active; using %u second timer wake to avoid an immediate wake loop",
-              REMOTE_TOUCH_WAKE_GPIO,
-              static_cast<unsigned>(REMOTE_SLEEP_FALLBACK_WAKE_SECONDS));
-    armTimerWake(REMOTE_SLEEP_FALLBACK_WAKE_SECONDS);
-    return;
-  }
-
   const esp_err_t err = esp_sleep_enable_ext0_wakeup(touchWakeGpio, REMOTE_TOUCH_WAKE_LEVEL);
-  if (err == ESP_OK) {
-    logPrintf(LogLevel::Info,
-              "Touch wake armed on GPIO %d level %d",
+  if (err != ESP_OK) {
+    logPrintf(LogLevel::Error,
+              "Failed to arm touch wake on GPIO %d: %d",
               REMOTE_TOUCH_WAKE_GPIO,
-              REMOTE_TOUCH_WAKE_LEVEL);
-    return;
+              static_cast<int>(err));
+    return false;
   }
 
-  logPrintf(LogLevel::Error,
-            "Failed to arm touch wake on GPIO %d: %d; using %u second timer fallback",
+  esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_AUTO);
+  logPrintf(LogLevel::Info,
+            "Touch wake armed on GPIO %d level %d",
             REMOTE_TOUCH_WAKE_GPIO,
-            static_cast<int>(err),
-            static_cast<unsigned>(REMOTE_SLEEP_FALLBACK_WAKE_SECONDS));
-  armTimerWake(REMOTE_SLEEP_FALLBACK_WAKE_SECONDS);
+            REMOTE_TOUCH_WAKE_LEVEL);
+  return true;
 }
 } // namespace
 
@@ -106,22 +146,72 @@ void PowerManager::maybeSleepAfterBoot(bool enabled) {
   esp_deep_sleep_start();
 }
 
-void PowerManager::goToSleep() {
-  logPrintf(LogLevel::Info, "Entering deep sleep indefinitely (wake on touch)...");
+bool PowerManager::prepareTouchSleep() {
+  if (!clearRemoteTouchForSleep(REMOTE_TOUCH_SLEEP_CLEAR_TIMEOUT_MS)) {
+    logPrintf(LogLevel::Warn, "Touch sleep preflight failed: touch/IRQ did not clear");
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    return false;
+  }
+
+  if (!waitForTouchWakeInactive()) {
+    logPrintf(LogLevel::Warn, "Touch sleep preflight failed: IRQ still active");
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    return false;
+  }
+
+  return armTouchWakeOnly();
+}
+
+bool PowerManager::finishTouchSleep() {
+  if (!waitForTouchWakeInactive()) {
+    logPrintf(LogLevel::Warn, "Touch IRQ became active before sleep commit; aborting sleep");
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    return false;
+  }
+
+  logPrintf(LogLevel::Info, "Entering production touch deep sleep");
   Serial.flush();
 
   renderSleepPage();
+  if (!clearRemoteTouchForSleep(REMOTE_TOUCH_SLEEP_CLEAR_TIMEOUT_MS) || !waitForTouchWakeInactive()) {
+    logPrintf(LogLevel::Warn, "Touch became active during sleep-page render; aborting sleep");
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    return false;
+  }
+
   shutdownWifiForSleep();
-  enableTouchWakeOrFallbackTimer();
+#if defined(CONFIG_BT_ENABLED)
+  btStop();
+#endif
+  shutdownRemoteDisplayForSleep();
+#if REMOTE_TOUCH_SLEEP_RELEASE_I2C
+  shutdownRemoteI2cBusForSleep();
+#endif
+
+  Serial.flush();
   esp_deep_sleep_start();
+  return true;
 }
 
-void PowerManager::auditSleep(uint32_t timerSeconds, bool enableTouchWake) {
+bool PowerManager::enterTouchSleep(const char *reason) {
+  logPrintf(LogLevel::Info, "Touch sleep requested: %s", reason != nullptr ? reason : "unknown");
+  if (!prepareTouchSleep()) {
+    return false;
+  }
+  return finishTouchSleep();
+}
+
+void PowerManager::goToSleep() {
+  enterTouchSleep("manual");
+}
+
+void PowerManager::auditSleep(uint32_t timerSeconds, bool enableTouchWake, uint8_t auditProfile) {
   const uint32_t safeTimerSeconds = timerSeconds > 0 ? timerSeconds : 60;
   logPrintf(LogLevel::Info,
-            "Entering audit deep sleep for %u seconds%s",
+            "Entering audit deep sleep for %u seconds%s profile=%u",
             static_cast<unsigned>(safeTimerSeconds),
-            enableTouchWake ? " with touch wake" : "");
+            enableTouchWake ? " with touch wake" : "",
+            static_cast<unsigned>(auditProfile));
   Serial.flush();
 
   shutdownWifiForSleep();
@@ -150,5 +240,7 @@ void PowerManager::auditSleep(uint32_t timerSeconds, bool enableTouchWake) {
     }
   }
 
+  applyAuditProfileForSleep(auditProfile, enableTouchWake);
+  Serial.flush();
   esp_deep_sleep_start();
 }

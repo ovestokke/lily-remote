@@ -48,27 +48,44 @@
 #define REMOTE_SLEEP_AFTER_BOOT 0
 
 // Normal UI idle sleep. E-paper keeps the last screen visible, so shorter idle
-// sleep saves battery without blanking the UI.
+// sleep saves battery without blanking the UI. Production sleep is touch wake
+// only; timer wake is audit-only and not a usable remote UX.
+#define REMOTE_IDLE_SLEEP_ENABLED 1
 #define REMOTE_IDLE_SLEEP_TIMEOUT_MS (90UL * 1000UL)
+#define REMOTE_SLEEP_WAKE_TOUCH 1
+#define REMOTE_SLEEP_WAKE_POLICY REMOTE_SLEEP_WAKE_TOUCH
 
-// GT911 interrupt wake configuration. The fallback timer is only used if the
-// touch IRQ is already active at sleep time, which would otherwise cause an
-// immediate wake/sleep loop.
+// GT911 interrupt wake configuration for production touch sleep.
 #define REMOTE_TOUCH_WAKE_GPIO 3
 #define REMOTE_TOUCH_WAKE_LEVEL 0
 #define REMOTE_WAIT_FOR_TOUCH_IRQ_RELEASE_MS 1500
-#define REMOTE_SLEEP_FALLBACK_WAKE_SECONDS (15UL * 60UL)
+#define REMOTE_TOUCH_SLEEP_CLEAR_TIMEOUT_MS 1500
+#define REMOTE_TOUCH_SLEEP_RELEASE_I2C 0
+#define REMOTE_SLEEP_RECOVERY_HOLD_MS (5UL * 60UL * 1000UL)
+#define REMOTE_EXT0_FAST_WAKE_MS (10UL * 1000UL)
+#define REMOTE_EXT0_WAKE_LOOP_LIMIT 3
 
 // Power-audit mode for isolating battery drain.
 // 0 = normal firmware
 // 1 = timer-only sleep audit
 // 2 = touch wake + timer heartbeat audit
 // 3 = stay awake and log periodically
+//
+// Audit profile isolates sleep-drain suspects in timer-only mode.
+// 0 = baseline cleanup
+// 1 = extra ESP radio/RTC-peripheral cleanup
+// 2 = put GT911 touch controller to sleep
+// 3 = force e-paper power off/deinit before sleep
+// 4 = release I2C pins before sleep
+// 5 = full cleanup: profiles 1-4 together
+// 99 = auto-cycle profiles 0-5 every REMOTE_POWER_AUDIT_PROFILE_CYCLES wakes
 // Safety: audit modes stay awake while USB/external power is present. A cold
 // boot/reset also gets a temporary recovery hold if external power is not
 // detected, so a bad sleep test still has an upload window.
 #define REMOTE_POWER_AUDIT_MODE 0
 #define REMOTE_POWER_AUDIT_TIMER_MINUTES 30
+#define REMOTE_POWER_AUDIT_PROFILE 0
+#define REMOTE_POWER_AUDIT_PROFILE_CYCLES 3
 #define REMOTE_POWER_AUDIT_ACTIVE_LOG_SECONDS 60
 #define REMOTE_POWER_AUDIT_RESET_HOLD_SECONDS (5UL * 60UL)
 #define REMOTE_POWER_AUDIT_UNPLUG_DEBOUNCE_SECONDS 5

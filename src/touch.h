@@ -29,4 +29,7 @@ struct RemoteTouchEvent {
 bool initRemoteTouch();
 bool isRemoteTouchReady();
 uint32_t getRemoteTouchLastActivityMs();
+bool clearRemoteTouchForSleep(uint32_t timeoutMs);
+bool sleepRemoteTouchController();
+bool sleepRemoteTouchControllerForPowerAudit();
 bool pollRemoteTouch(RemoteTouchEvent *event = nullptr);
