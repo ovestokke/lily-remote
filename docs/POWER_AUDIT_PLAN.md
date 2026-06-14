@@ -7,6 +7,7 @@ Goal: figure out why the Lily Remote battery appears to drop quickly without ope
 - The device cannot be opened for inline current measurement.
 - While USB is connected, the device does not enter its normal battery sleep behavior, so USB serial alone is not enough.
 - SOC percentage may be unreliable until the BQ27220 fuel gauge is calibrated/learned. Voltage and current trends are more useful than SOC alone.
+- Latest trend/code-review findings are documented in [`BATTERY_TREND_REVIEW_2026-06-14.md`](BATTERY_TREND_REVIEW_2026-06-14.md).
 
 ## Likely suspects
 
