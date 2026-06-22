@@ -477,7 +477,7 @@ int16_t estimateBatteryPercentFromVoltage(uint16_t voltageMv) {
   };
 
   // Conservative resting-voltage approximation for a single-cell Li-ion pack.
-  // This is only used when the BQ27220 CEDV SoC is visibly untrustworthy.
+  // Used for the display fill only; the UI shows coarse bands to avoid fake precision.
   static constexpr Point kCurve[] = {
       {3300, 0},
       {3600, 10},
@@ -507,6 +507,33 @@ int16_t estimateBatteryPercentFromVoltage(uint16_t voltageMv) {
   return 100;
 }
 
+const char *batteryBandFromVoltage(uint16_t voltageMv) {
+  if (voltageMv >= 3900) {
+    return "HIGH";
+  }
+  if (voltageMv >= 3650) {
+    return "MED";
+  }
+  return "LOW";
+}
+
+const char *batteryBandFromPercent(int16_t percent) {
+  if (percent >= 60) {
+    return "HIGH";
+  }
+  if (percent >= 25) {
+    return "MED";
+  }
+  return "LOW";
+}
+
+void setBatteryDisplayEstimate(int16_t percent, const char *label, bool voltageBased) {
+  const int16_t clamped = constrain(percent, 0, 100);
+  g_displayStatus.batteryDisplayOverride = voltageBased;
+  g_displayStatus.batteryDisplayPercent = clamped;
+  g_displayStatus.batteryDisplayLabel = label;
+}
+
 void updateBatteryDisplayStatus(const RemoteBatteryReading &reading) {
   g_displayStatus.batteryKnown = reading.available;
   g_displayStatus.batteryPercent = reading.available ? reading.percent : -1;
@@ -519,34 +546,16 @@ void updateBatteryDisplayStatus(const RemoteBatteryReading &reading) {
                                     reading.chargeStatus == RemoteChargeStatus::FastCharging;
   g_displayStatus.batteryChargeDone = reading.chargeStatus == RemoteChargeStatus::ChargeDone;
 
-  if (reading.chargerAvailable && reading.externalPower &&
-      reading.chargeStatus == RemoteChargeStatus::ChargeDone &&
-      (!reading.chargerFaultKnown || reading.rawChargerFault == 0)) {
-    g_displayStatus.batteryDisplayOverride = true;
-    g_displayStatus.batteryDisplayPercent = 100;
-    g_displayStatus.batteryDisplayLabel = "100%";
+  // BQ27220 SOC has stayed untrustworthy after repeated charge cycles. Best UX
+  // here is honest coarse state from voltage, while raw SOC stays in telemetry.
+  if (reading.voltageKnown) {
+    const int16_t voltageEstimate = estimateBatteryPercentFromVoltage(reading.voltageMv);
+    setBatteryDisplayEstimate(voltageEstimate, batteryBandFromVoltage(reading.voltageMv), true);
     return;
   }
 
-  if (!reading.voltageKnown || reading.externalPower) {
-    return;
-  }
-
-  const int16_t voltageEstimate = estimateBatteryPercentFromVoltage(reading.voltageMv);
-  if (!reading.available) {
-    g_displayStatus.batteryDisplayOverride = true;
-    g_displayStatus.batteryDisplayPercent = voltageEstimate;
-    g_displayStatus.batteryDisplayLabel = "~" + String(voltageEstimate) + "%";
-    return;
-  }
-
-  const int16_t gaugePercent = reading.percent;
-  const int16_t delta = voltageEstimate - gaugePercent;
-  const bool gaugeImplausiblyLow = gaugePercent <= 5 && voltageEstimate >= 20;
-  if (gaugeImplausiblyLow || abs(delta) >= 30) {
-    g_displayStatus.batteryDisplayOverride = true;
-    g_displayStatus.batteryDisplayPercent = voltageEstimate;
-    g_displayStatus.batteryDisplayLabel = "~" + String(voltageEstimate) + "%";
+  if (reading.available) {
+    setBatteryDisplayEstimate(reading.percent, batteryBandFromPercent(reading.percent), false);
   }
 }
 
@@ -573,6 +582,12 @@ String buildPowerTelemetryLine(const char *eventName,
   }
   if (displayPercent >= 0) {
     line += String(" disp=") + displayPercent;
+  }
+  if (g_displayStatus.batteryDisplayLabel.length() > 0) {
+    line += String(" band=") + g_displayStatus.batteryDisplayLabel;
+  }
+  if (displayOverride) {
+    line += " bsrc=mv";
   }
   if (reading.remainingCapacityKnown && reading.fullChargeCapacityKnown) {
     line += String(" rm=") + reading.remainingCapacityMah + "/" + reading.fullChargeCapacityMah;

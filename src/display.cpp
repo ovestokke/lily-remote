@@ -245,42 +245,48 @@ const char *deviceTargetName(RemoteDeviceTarget target) {
 }
 
 void drawBatteryIndicator(const RemoteDisplayStatus &status) {
-  constexpr int32_t x = 226;
-  constexpr int32_t y = 43;
-  constexpr int32_t w = 34;
-  constexpr int32_t h = 18;
+  constexpr int32_t x = 214;
+  constexpr int32_t y = 40;
+  constexpr int32_t frameW = 46;
+  constexpr int32_t frameH = 24;
   constexpr int32_t terminalW = 4;
+  constexpr int32_t cellW = 10;
+  constexpr int32_t cellH = 16;
+  constexpr int32_t cellGap = 3;
 
-  g_epaper.drawRect(x, y, w, h, BBEP_BLACK);
-  g_epaper.fillRect(x + w, y + 5, terminalW, 8, BBEP_BLACK);
+  g_epaper.drawRect(x, y, frameW, frameH, BBEP_BLACK);
+  g_epaper.fillRect(x + frameW, y + 7, terminalW, 10, BBEP_BLACK);
 
   const bool hasDisplayPercent = status.batteryDisplayPercent >= 0;
   const bool hasRawPercent = status.batteryKnown;
   const int16_t percent = constrain(hasDisplayPercent ? status.batteryDisplayPercent : status.batteryPercent, 0, 100);
-  String label = "--%";
+  String label = status.batteryDisplayLabel.length() > 0 ? status.batteryDisplayLabel : "---";
+  uint8_t segments = percent >= 67 ? 3 : (percent >= 34 ? 2 : (percent > 0 ? 1 : 0));
+  if (label.startsWith("HIGH")) {
+    segments = 3;
+  } else if (label.startsWith("MED")) {
+    segments = 2;
+  } else if (label.startsWith("LOW")) {
+    segments = 1;
+  }
 
-  if (hasDisplayPercent || hasRawPercent) {
-    const int32_t fillW = ((w - 4) * percent + 50) / 100;
-    if (fillW > 0) {
-      g_epaper.fillRect(x + 2, y + 2, fillW, h - 4, BBEP_BLACK);
+  for (uint8_t i = 0; i < 3; ++i) {
+    const int32_t cellX = x + 4 + i * (cellW + cellGap);
+    const int32_t cellY = y + 4;
+    g_epaper.drawRect(cellX, cellY, cellW, cellH, BBEP_BLACK);
+    if (!(hasDisplayPercent || hasRawPercent)) {
+      continue;
     }
-    if (status.batteryDisplayLabel.length() > 0) {
-      label = status.batteryDisplayLabel;
-    } else {
-      label = String(percent) + "%";
+    if (i < segments) {
+      g_epaper.fillRect(cellX + 2, cellY + 2, cellW - 4, cellH - 4, BBEP_BLACK);
+    } else if (segments <= 1) {
+      g_epaper.drawLine(cellX + 2, cellY + cellH - 3, cellX + cellW - 3, cellY + 2, BBEP_BLACK);
     }
   }
 
-  if (status.chargerKnown) {
-    if (status.batteryCharging) {
-      label += "+";
-    } else if (status.batteryChargeDone) {
-      label += "F";
-    } else if (status.externalPower && !status.batteryChargeDone) {
-      label += "P";
-    }
+  if (status.chargerKnown && status.batteryCharging) {
+    drawText8("+", x + frameW + terminalW + 5, y + 8);
   }
-  drawText8(label, x + 46, y + 5);
 }
 
 void drawTopBar(const char *title, const RemoteDisplayStatus &status) {
